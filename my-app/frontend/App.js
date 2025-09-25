@@ -1,35 +1,20 @@
-import React, { useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button } from 'react-native';
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+
+// Import all screens from src/screens
+import HomeScreen from "./src/screens/HomeScreen";
+
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [message, setMessage] = useState("Welcome to ScaleUp App!");
-
-  const handlePress = () => {
-    setMessage("You pressed the button! 🚀");
-  };
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{message}</Text>
-      <Button title="Press Me" onPress={handlePress} color="#6200ee" />
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        
+        <Stack.Screen name="Home" component={HomeScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f2f2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-});
