@@ -20,7 +20,7 @@ const LoginScreen = () => {
     // For now, just log the values
     console.log("Username:", username);
     console.log("Password:", password);
-    navigation.navigate("Home");
+     navigation.replace("HomeTabs");
   };
 
   return (

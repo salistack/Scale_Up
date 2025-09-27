@@ -2,11 +2,12 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-// Import all screens from src/screens
-
-import HomeScreen from "./src/screens/HomeScreen";
+// Import stack screens
 import LoginScreen from "./src/screens/LoginScreen";
 import SignupScreen from "./src/screens/SignUp";
+
+// Import Bottom Tabs
+import BottomTabs from "./src/navigation/BottomTabs";
 
 const Stack = createNativeStackNavigator();
 
@@ -14,15 +15,22 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Login">
+        {/* Login screen */}
         <Stack.Screen
           name="Login"
           component={LoginScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="Home" component={HomeScreen} />
+
+        {/* Home replaced by Bottom Tabs */}
+        <Stack.Screen
+          name="HomeTabs"
+          component={BottomTabs}
+          />
         <Stack.Screen
           name="SignUp"
           component={SignupScreen}
+
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
