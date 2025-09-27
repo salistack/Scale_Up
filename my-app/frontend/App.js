@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 // Import stack screens
 import LoginScreen from "./src/screens/LoginScreen";
+import SignupScreen from "./src/screens/SignUp";
 
 // Import Bottom Tabs
 import BottomTabs from "./src/navigation/BottomTabs";
@@ -25,6 +26,10 @@ export default function App() {
         <Stack.Screen
           name="HomeTabs"
           component={BottomTabs}
+        <Stack.Screen
+          name="SignUp"
+          component={SignupScreen}
+
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
