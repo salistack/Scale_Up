@@ -26,6 +26,7 @@ export default function App() {
         <Stack.Screen
           name="HomeTabs"
           component={BottomTabs}
+          />
         <Stack.Screen
           name="SignUp"
           component={SignupScreen}
