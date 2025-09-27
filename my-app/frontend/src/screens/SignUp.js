@@ -7,18 +7,18 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
-
 import { useNavigation } from "@react-navigation/native";
 
-const LoginScreen = () => {
+const SignUp = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const navigation = useNavigation();
 
-  const handleSignIn = () => {
-    // Add authentication logic here
-    // For now, just log the values
+  const handleSignUp = () => {
+    // Add sign up logic here
     console.log("Username:", username);
+    console.log("Email:", email);
     console.log("Password:", password);
     navigation.navigate("Home");
   };
@@ -43,6 +43,15 @@ const LoginScreen = () => {
           onChangeText={setUsername}
           autoCapitalize="none"
         />
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
         <Text style={styles.label}>Password</Text>
         <TextInput
           style={styles.input}
@@ -52,16 +61,16 @@ const LoginScreen = () => {
           secureTextEntry
           autoCapitalize="none"
         />
-        <TouchableOpacity style={styles.button} onPress={handleSignIn}>
-          <Text style={styles.buttonText}>Sign In</Text>
+        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
+          <Text style={styles.buttonText}>Sign Up</Text>
         </TouchableOpacity>
         <Text style={styles.signupText}>
-          Don't have an account?{" "}
+          Already have an account?{" "}
           <Text
             style={styles.signupLink}
-            onPress={() => navigation.navigate("SignUp")}
+            onPress={() => navigation.navigate("Login")}
           >
-            Sign up
+            Sign in
           </Text>
         </Text>
       </View>
@@ -81,7 +90,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
-    paddingBottom: 60,
+    paddingBottom: 390,
     backgroundColor: "#ffffffff",
   },
   logoImage: {
@@ -93,7 +102,7 @@ const styles = StyleSheet.create({
     flex: 2,
     justifyContent: "flex-start",
     backgroundColor: "#ffffffff",
-    marginTop: -100,
+    marginTop: -450,
   },
   label: {
     fontSize: 16,
@@ -133,4 +142,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginScreen;
+export default SignUp;
