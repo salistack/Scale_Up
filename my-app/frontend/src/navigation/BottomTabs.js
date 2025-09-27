@@ -29,7 +29,7 @@ export default function BottomTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarActiveTintColor: "#2f95dc",
+        tabBarActiveTintColor: "#6750A4",
         tabBarInactiveTintColor: "#666",
         tabBarStyle: {
           paddingBottom: Platform.OS === "android" ? 6 : 10,
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#2f95dc",
+    backgroundColor: "#6750A4",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",

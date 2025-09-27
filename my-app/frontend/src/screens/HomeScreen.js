@@ -207,7 +207,7 @@ const HomeScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.logo}>🚀 StartupConnect</Text>
+          <Text style={styles.logo}>StartupConnect</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.notificationButton}>
@@ -277,7 +277,7 @@ const HomeScreen = () => {
       </ScrollView>
 
       {/* Bottom Tab Navigation */}
-      <View style={styles.bottomNav}>
+      {/* <View style={styles.bottomNav}>
         {['home', 'feed', 'add', 'notifications', 'person'].map((icon, index) => (
           <TouchableOpacity key={index} style={styles.navItem}>
             <Icon 
@@ -287,7 +287,7 @@ const HomeScreen = () => {
             />
           </TouchableOpacity>
         ))}
-      </View>
+      </View> */}
     </SafeAreaView>
   );
 };
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#45B7D1',
+    color: '#6750A4',
   },
   notificationButton: {
     position: 'relative',
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   roleButtonActive: {
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
   },
   roleButtonText: {
     color: '#666',
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     flexDirection: 'row',
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#45B7D1',
+    shadowColor: '#6750A4',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   },
   feedAuthor: {
     fontSize: 12,
-    color: '#45B7D1',
+    color: '#6750A4',
     fontWeight: '600',
   },
   feedTimestamp: {

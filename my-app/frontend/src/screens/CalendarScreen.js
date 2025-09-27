@@ -176,7 +176,7 @@ const CalendarScreen = () => {
       {/* Month Navigation */}
       <View style={styles.monthNavigation}>
         <TouchableOpacity onPress={() => navigateMonth(-1)}>
-          <Icon name="chevron-left" size={24} color="#45B7D1" />
+          <Icon name="chevron-left" size={24} color="#6750A4" />
         </TouchableOpacity>
         
         <Text style={styles.monthTitle}>
@@ -184,7 +184,7 @@ const CalendarScreen = () => {
         </Text>
         
         <TouchableOpacity onPress={() => navigateMonth(1)}>
-          <Icon name="chevron-right" size={24} color="#45B7D1" />
+          <Icon name="chevron-right" size={24} color="#6750A4" />
         </TouchableOpacity>
       </View>
 
@@ -329,12 +329,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   calendarDayToday: {
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
   },
   calendarDaySelected: {
     backgroundColor: '#E3F2FD',
     borderWidth: 2,
-    borderColor: '#45B7D1',
+    borderColor: '#6750A4',
   },
   calendarDayText: {
     fontSize: 16,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   calendarDayTextSelected: {
-    color: '#45B7D1',
+    color: '#6750A4',
     fontWeight: 'bold',
   },
   eventDot: {
