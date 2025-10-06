@@ -8,6 +8,7 @@ import {
   Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SignUp = () => {
   const [username, setUsername] = useState("");
@@ -28,6 +29,13 @@ const SignUp = () => {
       });
       const data = await response.json();
       if (response.ok) {
+        // Save user info and token to AsyncStorage if returned
+        if (data.user) {
+          await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        }
+        if (data.token) {
+          await AsyncStorage.setItem("token", data.token);
+        }
         alert("Signup successful!");
         navigation.navigate("HomeTabs");
       } else {
