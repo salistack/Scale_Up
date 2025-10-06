@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LoginScreen = () => {
   const [username, setUsername] = useState("");
@@ -27,6 +28,9 @@ const LoginScreen = () => {
       });
       const data = await response.json();
       if (response.ok) {
+        // Save user info and token to AsyncStorage
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        await AsyncStorage.setItem("token", data.token);
         alert("Login successful!");
         navigation.replace("HomeTabs");
       } else {
