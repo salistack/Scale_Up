@@ -15,12 +15,26 @@ const LoginScreen = () => {
   const [password, setPassword] = useState("");
   const navigation = useNavigation();
 
-  const handleSignIn = () => {
-    // Add authentication logic here
-    // For now, just log the values
-    console.log("Username:", username);
-    console.log("Password:", password);
-     navigation.replace("HomeTabs");
+  const handleSignIn = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: username, // login by username
+          password,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Login successful!");
+        navigation.replace("HomeTabs");
+      } else {
+        alert(data.msg || "Login failed");
+      }
+    } catch (error) {
+      alert("Error connecting to server");
+    }
   };
 
   return (

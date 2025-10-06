@@ -15,12 +15,27 @@ const SignUp = () => {
   const [email, setEmail] = useState("");
   const navigation = useNavigation();
 
-  const handleSignUp = () => {
-    // Add sign up logic here
-    console.log("Username:", username);
-    console.log("Email:", email);
-    console.log("Password:", password);
-    navigation.navigate("Home");
+  const handleSignUp = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: username,
+          email,
+          password,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Signup successful!");
+        navigation.navigate("HomeTabs");
+      } else {
+        alert(data.msg || "Signup failed");
+      }
+    } catch (error) {
+      alert("Error connecting to server");
+    }
   };
 
   return (
