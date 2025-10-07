@@ -29,25 +29,38 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { name, password } = req.body;
+    console.log("Login attempt:", { name });
 
     // Find user by username
     const user = await User.findOne({ name });
-    if (!user) return res.status(400).json({ msg: "Invalid credentials" });
+    console.log("User found:", user);
+
+    if (!user) {
+      console.log("User not found");
+      return res.status(400).json({ msg: "Invalid credentials" });
+    }
 
     // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
+    console.log("Password match:", isMatch);
 
-    // Create JWT
-    const token = jwt.sign({ userId: user._id }, "your_jwt_secret", {
-      expiresIn: "1h",
+    if (!isMatch) {
+      console.log("Password does not match");
+      return res.status(400).json({ msg: "Invalid credentials" });
+    }
+
+    // Create JWT using secret from .env
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "2h",
     });
+    console.log("JWT created:", token);
 
     res.json({
       token,
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (err) {
+    console.error("Login error:", err);
     res.status(500).json({ msg: "Server error" });
   }
 };
