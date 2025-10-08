@@ -25,7 +25,11 @@ export default function App() {
           />
 
           {/* Home replaced by Bottom Tabs */}
-          <Stack.Screen name="HomeTabs" component={BottomTabs} />
+          <Stack.Screen
+            name="HomeTabs"
+            component={BottomTabs}
+            options={{ headerShown: false }}
+          />
           <Stack.Screen
             name="SignUp"
             component={SignupScreen}
