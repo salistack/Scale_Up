@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 //import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -20,6 +21,49 @@ const CreatePostScreen = () => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
     setActiveIdx(null);
   };
+
+  const handlePost = async () => {
+    try {
+      // Get JWT token if your backend requires it
+      const token = await AsyncStorage.getItem("token");
+
+      // Prepare form data
+      const postData = {
+        businessTitle,
+        tagline,
+        industry,
+        shortDescription,
+        longDescription,
+        fundAmount,
+        otherNeeds,
+        images: selectedImages, // array of image URLs/paths
+      };
+
+      // Send POST request to backend
+      const response = await fetch(
+        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify(postData),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        alert("Post created successfully!");
+        // Optionally clear form fields here
+      } else {
+        alert(data.msg || "Failed to create post");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
   const [businessTitle, setBusinessTitle] = useState("");
   const [tagline, setTagline] = useState("");
   const [industry, setIndustry] = useState("");
@@ -261,12 +305,7 @@ const CreatePostScreen = () => {
               </ScrollView>
             )}
 
-            <TouchableOpacity
-              style={styles.postButton}
-              onPress={() => {
-                /* TODO: handle post action */
-              }}
-            >
+            <TouchableOpacity style={styles.postButton} onPress={handlePost}>
               <Text style={styles.postButtonText}>Post</Text>
             </TouchableOpacity>
 
@@ -407,7 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginTop: 10,
-    marginRight: 1300,
+    marginRight: 200,
   },
   uploadButtonText: {
     color: "#fff",
@@ -441,7 +480,7 @@ const styles = StyleSheet.create({
   },
   formSwitchText: {
     color: "#333",
-    fontSize: 15,
+    fontSize: 10,
     fontWeight: "bold",
   },
   formSwitchTextActive: {
