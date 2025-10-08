@@ -1,568 +1,489 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+//import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   StyleSheet,
   SafeAreaView,
   TextInput,
-  StatusBar,
+  ScrollView,
   Image,
-  Alert,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+  TouchableOpacity,
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
-const CreatePostScreen = ({ route }) => {
-  const { userRole = 'entrepreneur' } = route?.params || {};
-  const [postData, setPostData] = useState({
-    title: '',
-    content: '',
-    tags: [],
-    attachments: [],
-    category: '',
-  });
-  const [activeTab, setActiveTab] = useState('write');
-  const [selectedCategory, setSelectedCategory] = useState('');
-
-  const categories = {
-    entrepreneur: ['Startup Idea', 'Pitch Deck', 'Funding Request', 'Progress Update'],
-    mentor: ['Advice', 'Experience', 'Resources', 'Opportunity'],
-    investor: ['Funding Round', 'Industry Insights', 'Opportunity', 'Trends'],
-    franchise: ['Expansion', 'Success Story', 'Partnership', 'Update'],
+const CreatePostScreen = () => {
+  const [activeIdx, setActiveIdx] = useState(null);
+  const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
+  const removeImage = (idx) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
+    setActiveIdx(null);
   };
+  const [businessTitle, setBusinessTitle] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
+  const [longDescription, setLongDescription] = useState("");
+  const [fundAmount, setFundAmount] = useState("");
+  const [otherNeeds, setOtherNeeds] = useState("");
+  const [selectedImages, setSelectedImages] = useState([]);
 
-  const roleConfig = {
-    entrepreneur: {
-      titlePlaceholder: 'Your innovative startup idea title...',
-      contentPlaceholder: 'Describe your idea, problem you\'re solving, target market, unique value proposition...',
-      ctaText: 'Submit Idea',
-      icon: '💡',
-    },
-    mentor: {
-      titlePlaceholder: 'Share your expertise or advice...',
-      contentPlaceholder: 'Write your mentorship tips, experiences, or guidance for entrepreneurs...',
-      ctaText: 'Share Advice',
-      icon: '👥',
-    },
-    investor: {
-      titlePlaceholder: 'Investment opportunity or insights...',
-      contentPlaceholder: 'Share funding opportunities, industry trends, or investment criteria...',
-      ctaText: 'Post Announcement',
-      icon: '💰',
-    },
-    franchise: {
-      titlePlaceholder: 'Franchise update or success story...',
-      contentPlaceholder: 'Share expansion updates, partner success stories, or operational insights...',
-      ctaText: 'Share Update',
-      icon: '🏢',
-    },
-  };
+  const industries = [
+    "Technology",
+    "Healthcare",
+    "Finance",
+    "Education",
+    "Retail",
+    "Manufacturing",
+    "Energy",
+    "Transportation",
+    "Hospitality",
+    "Real Estate",
+    "Agriculture",
+    "Media & Entertainment",
+    "Telecommunications",
+    "Food & Beverage",
+    "Automotive",
+    "Construction",
+    "Government",
+    "Non-Profit",
+    "Pharmaceutical",
+    "Aerospace",
+    "Logistics",
+    "Insurance",
+    "Legal",
+    "Sports & Recreation",
+  ];
 
-  const config = roleConfig[userRole];
-
-  const handleSubmit = () => {
-    if (!postData.title.trim() || !postData.content.trim()) {
-      Alert.alert('Missing Information', 'Please fill in both title and content');
+  const pickImage = async () => {
+    // Ask for permission
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert("Permission to access gallery is required!");
       return;
     }
 
-    // Simulate API call
-    Alert.alert(
-      'Success!',
-      `Your ${userRole} post has been submitted successfully`,
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setPostData({ title: '', content: '', tags: [], attachments: [], category: '' });
-            setSelectedCategory('');
-          },
-        },
-      ]
-    );
-  };
+    // Open picker
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
 
-  const addTag = (tag) => {
-    if (!postData.tags.includes(tag) && postData.tags.length < 5) {
-      setPostData({ ...postData, tags: [...postData.tags, tag] });
+    if (!result.canceled) {
+      setSelectedImages((prev) => [
+        ...prev,
+        ...result.assets.map((asset) => asset.uri),
+      ]);
     }
   };
 
-  const removeTag = (tagToRemove) => {
-    setPostData({
-      ...postData,
-      tags: postData.tags.filter(tag => tag !== tagToRemove),
-    });
-  };
-
-  const renderPreview = () => (
-    <View style={styles.previewContainer}>
-      <Text style={styles.previewTitle}>Preview</Text>
-      <View style={styles.previewCard}>
-        <View style={styles.previewHeader}>
-          <View style={styles.previewAvatar}>
-            <Text style={styles.previewAvatarText}>{config.icon}</Text>
-          </View>
-          <View>
-            <Text style={styles.previewAuthor}>You</Text>
-            <Text style={styles.previewTimestamp}>Just now</Text>
-          </View>
-        </View>
-        
-        <Text style={styles.previewPostTitle}>{postData.title || 'Your post title will appear here'}</Text>
-        <Text style={styles.previewPostContent}>
-          {postData.content || 'Your post content will appear here...'}
-        </Text>
-        
-        {postData.tags.length > 0 && (
-          <View style={styles.previewTags}>
-            {postData.tags.map((tag, index) => (
-              <View key={index} style={styles.previewTag}>
-                <Text style={styles.previewTagText}>#{tag}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-        
-        {userRole === 'entrepreneur' && (
-          <View style={styles.qrSection}>
-            <Text style={styles.qrText}>📱 QR Code will be generated for your pitch</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Create Post</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleBadgeText}>
-            {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
-          </Text>
-        </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Tab Selector */}
-        <View style={styles.tabSelector}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'write' && styles.tabActive]}
-            onPress={() => setActiveTab('write')}
+      <View style={styles.buttonGroup}>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
+            activeForm === "entrepreneur" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("entrepreneur")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "entrepreneur" && styles.formSwitchTextActive,
+            ]}
           >
-            <Text style={[styles.tabText, activeTab === 'write' && styles.tabTextActive]}>
-              Write
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'preview' && styles.tabActive]}
-            onPress={() => setActiveTab('preview')}
+            Entrepreneur
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
+            activeForm === "mentor" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("mentor")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "mentor" && styles.formSwitchTextActive,
+            ]}
           >
-            <Text style={[styles.tabText, activeTab === 'preview' && styles.tabTextActive]}>
-              Preview
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeTab === 'write' ? (
-          <>
-            {/* Category Selection */}
-            <Text style={styles.sectionLabel}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categories}>
-              {categories[userRole].map((category, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.categoryButton,
-                    selectedCategory === category && styles.categoryButtonActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedCategory(category);
-                    setPostData({ ...postData, category });
-                  }}
-                >
-                  <Text style={[
-                    styles.categoryText,
-                    selectedCategory === category && styles.categoryTextActive,
-                  ]}>
-                    {category}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Title Input */}
-            <Text style={styles.sectionLabel}>Title</Text>
-            <TextInput
-              style={styles.titleInput}
-              placeholder={config.titlePlaceholder}
-              value={postData.title}
-              onChangeText={(text) => setPostData({ ...postData, title: text })}
-              maxLength={100}
-            />
-
-            {/* Content Input */}
-            <Text style={styles.sectionLabel}>Content</Text>
-            <TextInput
-              style={styles.contentInput}
-              placeholder={config.contentPlaceholder}
-              value={postData.content}
-              onChangeText={(text) => setPostData({ ...postData, content: text })}
-              multiline
-              textAlignVertical="top"
-              numberOfLines={8}
-            />
-
-            {/* Tags */}
-            <Text style={styles.sectionLabel}>Tags (Optional)</Text>
-            <View style={styles.tagsContainer}>
-              {postData.tags.map((tag, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.tag}
-                  onPress={() => removeTag(tag)}
-                >
-                  <Text style={styles.tagText}>#{tag}</Text>
-                  <Icon name="close" size={14} color="#666" />
-                </TouchableOpacity>
-              ))}
-              {postData.tags.length < 5 && (
-                <TextInput
-                  style={styles.tagInput}
-                  placeholder="Add tag..."
-                  onSubmitEditing={(e) => {
-                    addTag(e.nativeEvent.text.trim());
-                    e.nativeEvent.text = '';
-                  }}
-                />
-              )}
-            </View>
-
-            {/* Attachment Section */}
-            <Text style={styles.sectionLabel}>Attachments (Optional)</Text>
-            <TouchableOpacity style={styles.attachmentButton}>
-              <Icon name="attach-file" size={20} color="#45B7D1" />
-              <Text style={styles.attachmentText}>Add files, images, or documents</Text>
-            </TouchableOpacity>
-
-            {/* QR Code Option for Entrepreneurs */}
-            {userRole === 'entrepreneur' && (
-              <TouchableOpacity style={styles.qrOption}>
-                <View style={styles.qrOptionLeft}>
-                  <Icon name="qr-code" size={24} color="#45B7D1" />
-                  <View style={styles.qrOptionText}>
-                    <Text style={styles.qrOptionTitle}>Generate Pitch QR Code</Text>
-                    <Text style={styles.qrOptionDesc}>Investors can scan to view full pitch</Text>
-                  </View>
-                </View>
-                <Icon name="check-box-outline-blank" size={24} color="#CCC" />
-              </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          renderPreview()
-        )}
-      </ScrollView>
-
-      {/* Submit Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>{config.ctaText}</Text>
-          <Icon name="send" size={20} color="#FFFFFF" />
+            Mentor
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
+            activeForm === "investor" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("investor")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "investor" && styles.formSwitchTextActive,
+            ]}
+          >
+            Investor
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
+            activeForm === "franchise" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("franchise")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "franchise" && styles.formSwitchTextActive,
+            ]}
+          >
+            Franchise Owner
+          </Text>
         </TouchableOpacity>
       </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.formContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeForm === "entrepreneur" && (
+          <>
+            <Text style={styles.label}>Business Title</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your business title"
+              value={businessTitle}
+              onChangeText={setBusinessTitle}
+            />
+
+            <Text style={styles.label}>Tagline</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your tagline"
+              value={tagline}
+              onChangeText={setTagline}
+            />
+
+            <Text style={styles.label}>Industry</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={industry}
+                onValueChange={(itemValue) => setIndustry(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Industry" value="" />
+                {industries.map((ind) => (
+                  <Picker.Item key={ind} label={ind} value={ind} />
+                ))}
+              </Picker>
+            </View>
+            <Text style={styles.label}>Short Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 60 }]}
+              placeholder="Write a short description about your post"
+              multiline
+              maxLength={200}
+              value={shortDescription}
+              onChangeText={setShortDescription}
+            />
+
+            <Text style={styles.label}>Detailed Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 100 }]}
+              placeholder="Write a detailed description about your post"
+              multiline
+              maxLength={200}
+              value={longDescription}
+              onChangeText={setLongDescription}
+            />
+
+            <Text style={styles.label}>Fund Amount</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter fund amount"
+              value={fundAmount}
+              onChangeText={setFundAmount}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>Other Needs</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Eg: Mentorship, Partnerships, Manpower"
+              value={otherNeeds}
+              onChangeText={setOtherNeeds}
+            />
+
+            <TouchableOpacity onPress={pickImage} style={styles.uploadButton}>
+              <Text style={styles.uploadButtonText}>Upload Image</Text>
+            </TouchableOpacity>
+
+            {selectedImages.length > 0 && (
+              <ScrollView horizontal style={{ marginTop: 10 }}>
+                {selectedImages.map((uri, idx) => (
+                  <View
+                    key={idx}
+                    style={styles.imageWrapper}
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    onMouseLeave={() => setActiveIdx(null)}
+                  >
+                    <TouchableOpacity
+                      activeOpacity={1}
+                      onLongPress={() => setActiveIdx(idx)}
+                      onPressOut={() => setActiveIdx(null)}
+                      style={{ width: 100, height: 100 }}
+                    >
+                      <Image source={{ uri }} style={styles.uploadedImage} />
+                      {activeIdx === idx && (
+                        <TouchableOpacity
+                          style={styles.removeImageBtn}
+                          onPress={() => removeImage(idx)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.removeImageText}>×</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={styles.postButton}
+              onPress={() => {
+                /* TODO: handle post action */
+              }}
+            >
+              <Text style={styles.postButtonText}>Post</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setBusinessTitle("");
+                setTagline("");
+                setIndustry("");
+                setShortDescription("");
+                setLongDescription("");
+                setFundAmount("");
+                setOtherNeeds("");
+                setSelectedImages([]);
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {activeForm === "mentor" && (
+          <View style={styles.placeholderForm}>
+            <Text style={styles.placeholderText}>
+              Mentor Form (to be implemented)
+            </Text>
+          </View>
+        )}
+        {activeForm === "investor" && (
+          <View style={styles.placeholderForm}>
+            <Text style={styles.placeholderText}>
+              Investor Form (to be implemented)
+            </Text>
+          </View>
+        )}
+        {activeForm === "franchise" && (
+          <View style={styles.placeholderForm}>
+            <Text style={styles.placeholderText}>
+              Franchise Owner Form (to be implemented)
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  imageWrapper: {
+    position: "relative",
+    marginRight: 10,
+    width: 100,
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  uploadedImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removeImageBtn: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  removeImageText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+    lineHeight: 22,
+  },
+  visible: {
+    opacity: 1,
+  },
+  hidden: {
+    opacity: 0,
+  },
+  scrollView: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: "#F0F0F0",
+    //backgroundColor: "#FFFFFF",
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
-  roleBadge: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  roleBadgeText: {
-    color: '#45B7D1',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  content: {
-    flex: 1,
+  formContainer: {
     padding: 20,
   },
-  tabSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  tabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabText: {
+  label: {
     fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#45B7D1',
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-    marginTop: 20,
-  },
-  categories: {
-    marginBottom: 10,
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  categoryButtonActive: {
-    backgroundColor: '#45B7D1',
-  },
-  categoryText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  categoryTextActive: {
-    color: '#FFFFFF',
-  },
-  titleInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  contentInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    minHeight: 200,
-    textAlignVertical: 'top',
-    marginBottom: 10,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  tag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    fontWeight: "normal",
+    color: "#333",
     marginBottom: 8,
   },
-  tagText: {
-    color: '#45B7D1',
-    fontSize: 14,
-    marginRight: 4,
-  },
-  tagInput: {
-    minWidth: 80,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  inputField: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 16,
-    fontSize: 14,
+    borderColor: "#ccc",
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 16,
+    backgroundColor: "#fff",
   },
-  attachmentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  pickerContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 10,
+    borderColor: "#ccc",
+    borderRadius: 4,
+    marginBottom: 16,
+    backgroundColor: "#fff",
+    overflow: "hidden",
   },
-  attachmentText: {
-    marginLeft: 10,
-    color: '#45B7D1',
-    fontSize: 16,
-  },
-  qrOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8F9FA',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  qrOptionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  qrOptionText: {
-    marginLeft: 12,
-  },
-  qrOptionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  qrOptionDesc: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  previewContainer: {
-    marginTop: 10,
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  previewCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  previewAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#45B7D1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  previewAvatarText: {
-    fontSize: 18,
-  },
-  previewAuthor: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  previewTimestamp: {
-    fontSize: 12,
-    color: '#666',
-  },
-  previewPostTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  previewPostContent: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  previewTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12,
-  },
-  previewTag: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  previewTagText: {
-    color: '#45B7D1',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  qrSection: {
-    backgroundColor: '#E3F2FD',
+  uploadButton: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#6750A4",
+    //color: "#fff",
     padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
+    marginTop: 10,
+    marginRight: 1300,
   },
-  qrText: {
-    color: '#1976D2',
-    fontWeight: '600',
+  uploadButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "regular",
   },
-  footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+  picker: {
+    height: 50,
+    width: "100%",
   },
-  submitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#45B7D1',
-    paddingVertical: 16,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#45B7D1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+  buttonGroup: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginHorizontal: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  submitButtonText: {
-    color: '#FFFFFF',
+  formSwitchBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    marginHorizontal: 4,
+    backgroundColor: "#eee",
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  formSwitchBtnActive: {
+    backgroundColor: "#6750A4",
+    borderColor: "#6750A4",
+  },
+  formSwitchText: {
+    color: "#333",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  formSwitchTextActive: {
+    color: "#fff",
+  },
+  placeholderForm: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  placeholderText: {
+    color: "#888",
     fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontStyle: "italic",
+  },
+  postButton: {
+    backgroundColor: "#6750A4",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  postButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  discardButton: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#6750A4",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  discardButtonText: {
+    color: "#6750A4",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
 
