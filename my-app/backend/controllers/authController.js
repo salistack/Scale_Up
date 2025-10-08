@@ -19,7 +19,16 @@ exports.signup = async (req, res) => {
     user = new User({ name, email, password: hashedPassword });
     await user.save();
 
-    res.status(201).json({ msg: "User registered successfully" });
+    // Create JWT using secret from .env
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "2h",
+    });
+
+    res.status(201).json({
+      msg: "User registered successfully",
+      token,
+      user: { id: user._id, name: user.name, email: user.email },
+    });
   } catch (err) {
     res.status(500).json({ msg: "Server error" });
   }

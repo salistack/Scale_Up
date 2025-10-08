@@ -41,7 +41,7 @@ const CreatePostScreen = () => {
 
       // Send POST request to backend
       const response = await fetch(
-        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
