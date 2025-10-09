@@ -1,19 +1,56 @@
 import React, { useEffect, useState } from "react";
-import { SafeAreaView, View, Text, ScrollView, StyleSheet } from "react-native";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Image,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HomeScreen = () => {
   const [userName, setUserName] = useState("");
+  const [posts, setPosts] = useState([]);
+  const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
 
   useEffect(() => {
-    const loadUser = async () => {
+    const loadUserAndPosts = async () => {
+      // Get user name
       const userData = await AsyncStorage.getItem("user");
       if (userData) {
         const user = JSON.parse(userData);
         setUserName(user.name || "");
       }
+
+      // Get JWT token directly
+      const token = await AsyncStorage.getItem("token");
+
+      // Fetch entrepreneur posts with Authorization header
+      try {
+        const response = await fetch(
+          "http://192.168.1.121:5000/api/entrepreneur/posts",
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          }
+        );
+        const data = await response.json();
+        // Defensive: ensure posts is always an array
+        if (Array.isArray(data)) {
+          setPosts(data);
+        } else if (data && Array.isArray(data.posts)) {
+          setPosts(data.posts);
+        } else {
+          setPosts([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch posts", err);
+      }
     };
-    loadUser();
+    loadUserAndPosts();
   }, []);
 
   return (
@@ -21,11 +58,79 @@ const HomeScreen = () => {
       <View style={styles.greetingSection}>
         <Text style={styles.greeting}>Good morning, {userName}!</Text>
       </View>
-      {/* Vertical recycler view (empty for now) */}
       <ScrollView style={{ flex: 1 }}>
-        {/* Future dynamic content goes here */}
+        <View style={styles.feedSection}>
+          <Text style={styles.feedSectionTitle}>Entrepreneur Posts</Text>
+          {posts.length === 0 ? (
+            <Text>No posts yet.</Text>
+          ) : (
+            posts.map((post) => (
+              <View key={post._id} style={styles.feedCard}>
+                {/* Show poster's name above business title */}
+                <Text style={styles.feedAuthorName}>
+                  {post.user && post.user.name ? post.user.name : "Unknown"}
+                </Text>
+                <View style={styles.feedHeader}>
+                  <Text style={styles.feedTitle}>{post.businessTitle}</Text>
+                </View>
+                {expandedPostId === post._id && post.longDescription ? (
+                  <Text style={styles.feedDescription}>
+                    {post.longDescription}
+                    <Text
+                      style={styles.moreText}
+                      onPress={() => setExpandedPostId(null)}
+                    >
+                      {" "}
+                      less..
+                    </Text>
+                  </Text>
+                ) : (
+                  <Text style={styles.feedDescription}>
+                    {post.shortDescription}
+                    {post.longDescription && (
+                      <Text
+                        style={styles.moreText}
+                        onPress={() => setExpandedPostId(post._id)}
+                      >
+                        {" "}
+                        more..
+                      </Text>
+                    )}
+                  </Text>
+                )}
+                <Text style={styles.feedAuthor}>{post.industry}</Text>
+                <Text style={styles.feedAuthor}>{post.tagline}</Text>
+                {/* Display images below industry and tagline */}
+                {Array.isArray(post.images) && post.images.length > 0 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      marginTop: 8,
+                    }}
+                  >
+                    {post.images.map((img, idx) => (
+                      <Image
+                        key={idx}
+                        source={{ uri: img }}
+                        style={{
+                          width: 80,
+                          height: 80,
+                          borderRadius: 8,
+                          marginRight: 8,
+                          marginBottom: 8,
+                        }}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </View>
+                )}
+                {/* Add more fields/images as needed */}
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
-      {/* Bottom Tab Navigation placeholder (should be handled by your navigator) */}
     </SafeAreaView>
   );
 };
@@ -220,7 +325,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   feedTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#333",
     flex: 1,
@@ -251,6 +356,21 @@ const styles = StyleSheet.create({
     color: "#6750A4",
     fontWeight: "600",
   },
+  feedAuthorName: {
+    fontSize: 17,
+    color: "#000000ff",
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  moreText: {
+    color: "#1976D2",
+    fontWeight: "600",
+    //paddingLeft: 19,
+    fontSize: 13,
+    //fontStyle: "italic",
+    //fontStyle:"underline"
+  },
+
   feedTimestamp: {
     fontSize: 12,
     color: "#999",
