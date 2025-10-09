@@ -18,15 +18,18 @@ const SignUp = () => {
 
   const handleSignUp = async () => {
     try {
-      const response = await fetch("http://192.168.1.121:5000/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: username,
-          email,
-          password,
-        }),
-      });
+      const response = await fetch(
+        "http://192.168.1.121:5000/api/auth/signup",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: username,
+            email,
+            password,
+          }),
+        }
+      );
       const data = await response.json();
       if (response.ok) {
         // Save user info and token to AsyncStorage if returned
