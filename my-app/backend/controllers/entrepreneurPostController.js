@@ -2,10 +2,23 @@ const EntrepreneurPost = require("../models/EntrepreneurPost");
 
 exports.createPost = async (req, res) => {
   try {
+    // Get Cloudinary image URL if file uploaded
+    let images = [];
+    if (req.file && req.file.path) {
+      images.push(req.file.path);
+    }
+    // If you want to support multiple images, you can handle req.files here
+
     const post = new EntrepreneurPost({
       user: req.user,
-      ...req.body,
-      images: req.body.images || [],
+      businessTitle: req.body.businessTitle,
+      tagline: req.body.tagline,
+      industry: req.body.industry,
+      shortDescription: req.body.shortDescription,
+      longDescription: req.body.longDescription,
+      fundAmount: req.body.fundAmount,
+      otherNeeds: req.body.otherNeeds,
+      images,
     });
     const savedPost = await post.save();
     res.status(201).json({ msg: "Post created", post: savedPost });
