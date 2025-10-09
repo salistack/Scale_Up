@@ -60,7 +60,7 @@ exports.login = async (req, res) => {
 
     // Create JWT using secret from .env
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "2h",
+      expiresIn: "24h",
     });
     console.log("JWT created:", token);
 

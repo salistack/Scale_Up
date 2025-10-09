@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigation } from "@react-navigation/native";
 //import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
   const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
+  const navigation = useNavigation();
   const removeImage = (idx) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
     setActiveIdx(null);
@@ -64,7 +66,7 @@ const CreatePostScreen = () => {
         }
       }
       const response = await fetch(
-        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -173,7 +175,12 @@ const CreatePostScreen = () => {
             styles.formSwitchBtn,
             activeForm === "investor" && styles.formSwitchBtnActive,
           ]}
-          onPress={() => setActiveForm("investor")}
+          onPress={() => {
+            // navigate to the separate InvestorForm screen under /src/screens
+            const parentNav = navigation.getParent && navigation.getParent();
+            if (parentNav) parentNav.navigate("InvestorForm");
+            else navigation.navigate("InvestorForm");
+          }}
         >
           <Text
             style={[
