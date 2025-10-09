@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
   View,
@@ -14,44 +15,47 @@ const HomeScreen = () => {
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
 
-  useEffect(() => {
-    const loadUserAndPosts = async () => {
-      // Get user name
-      const userData = await AsyncStorage.getItem("user");
-      if (userData) {
-        const user = JSON.parse(userData);
-        setUserName(user.name || "");
-      }
+  const loadUserAndPosts = async () => {
+    // Get user name
+    const userData = await AsyncStorage.getItem("user");
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserName(user.name || "");
+    }
 
-      // Get JWT token directly
-      const token = await AsyncStorage.getItem("token");
+    // Get JWT token directly
+    const token = await AsyncStorage.getItem("token");
 
-      // Fetch entrepreneur posts with Authorization header
-      try {
-        const response = await fetch(
-          "http://192.168.1.121:5000/api/entrepreneur/posts",
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }
-        );
-        const data = await response.json();
-        // Defensive: ensure posts is always an array
-        if (Array.isArray(data)) {
-          setPosts(data);
-        } else if (data && Array.isArray(data.posts)) {
-          setPosts(data.posts);
-        } else {
-          setPosts([]);
+    // Fetch entrepreneur posts with Authorization header
+    try {
+      const response = await fetch(
+        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         }
-      } catch (err) {
-        console.error("Failed to fetch posts", err);
+      );
+      const data = await response.json();
+      // Defensive: ensure posts is always an array
+      if (Array.isArray(data)) {
+        setPosts(data);
+      } else if (data && Array.isArray(data.posts)) {
+        setPosts(data.posts);
+      } else {
+        setPosts([]);
       }
-    };
-    loadUserAndPosts();
-  }, []);
+    } catch (err) {
+      console.error("Failed to fetch posts", err);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserAndPosts();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,18 +104,27 @@ const HomeScreen = () => {
                 )}
                 <Text style={styles.feedAuthor}>{post.industry}</Text>
                 <Text style={styles.feedAuthor}>{post.tagline}</Text>
-                {/* Display Cloudinary image below industry and tagline */}
+                {/* Display all Cloudinary images below industry and tagline */}
                 {post.images && post.images.length > 0 && (
-                  <Image
-                    source={{ uri: post.images[0] }}
-                    style={{
-                      width: 200,
-                      height: 200,
-                      borderRadius: 12,
-                      marginTop: 8,
-                    }}
-                    resizeMode="cover"
-                  />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginTop: 8 }}
+                  >
+                    {post.images.map((imgUrl, idx) => (
+                      <Image
+                        key={imgUrl + idx}
+                        source={{ uri: imgUrl }}
+                        style={{
+                          width: 200,
+                          height: 200,
+                          borderRadius: 12,
+                          marginRight: 10,
+                        }}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </ScrollView>
                 )}
                 {/* Add more fields/images as needed */}
               </View>

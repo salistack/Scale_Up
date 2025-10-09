@@ -2,10 +2,10 @@ const EntrepreneurPost = require("../models/EntrepreneurPost");
 
 exports.createPost = async (req, res) => {
   try {
-    // Get Cloudinary image URL if file uploaded
+    // Get Cloudinary image URLs if files uploaded
     let images = [];
-    if (req.file && req.file.path) {
-      images.push(req.file.path);
+    if (req.files && req.files.length > 0) {
+      images = req.files.map((file) => file.path);
     }
     // If you want to support multiple images, you can handle req.files here
 

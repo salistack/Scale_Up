@@ -33,29 +33,34 @@ const CreatePostScreen = () => {
       formData.append("longDescription", longDescription);
       formData.append("fundAmount", fundAmount);
       formData.append("otherNeeds", otherNeeds);
-      // Debug: log selectedImages[0] before upload
+      // Debug: log all selectedImages before upload
       if (selectedImages.length > 0) {
-        const asset = selectedImages[0];
-        console.log("Uploading asset:", asset);
-        if (asset.uri.startsWith("blob:")) {
-          // Web: convert blob URI to File/Blob
-          try {
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
-            formData.append("image", blob, asset.fileName || "photo.jpg");
-          } catch (err) {
-            console.log("Error converting blob URI to file:", err);
+        for (const asset of selectedImages) {
+          console.log("Uploading asset:", asset);
+          if (asset.uri.startsWith("blob:")) {
+            // Web: convert blob URI to File/Blob
+            try {
+              const response = await fetch(asset.uri);
+              const blob = await response.blob();
+              formData.append("images", blob, asset.fileName || "photo.jpg");
+            } catch (err) {
+              console.log("Error converting blob URI to file:", err);
+            }
+          } else if (asset.file) {
+            // Web: use File object directly
+            formData.append(
+              "images",
+              asset.file,
+              asset.fileName || "photo.jpg"
+            );
+          } else {
+            // Native: use correct property names
+            formData.append("images", {
+              uri: asset.uri,
+              type: asset.mimeType || "image/jpeg",
+              name: asset.fileName || "photo.jpg",
+            });
           }
-        } else if (asset.file) {
-          // Web: use File object directly
-          formData.append("image", asset.file, asset.fileName || "photo.jpg");
-        } else {
-          // Native: use correct property names
-          formData.append("image", {
-            uri: asset.uri,
-            type: asset.mimeType || "image/jpeg",
-            name: asset.fileName || "photo.jpg",
-          });
         }
       }
       const response = await fetch(
