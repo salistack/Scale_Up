@@ -100,30 +100,18 @@ const HomeScreen = () => {
                 )}
                 <Text style={styles.feedAuthor}>{post.industry}</Text>
                 <Text style={styles.feedAuthor}>{post.tagline}</Text>
-                {/* Display images below industry and tagline */}
-                {Array.isArray(post.images) && post.images.length > 0 && (
-                  <View
+                {/* Display Cloudinary image below industry and tagline */}
+                {post.images && post.images.length > 0 && (
+                  <Image
+                    source={{ uri: post.images[0] }}
                     style={{
-                      flexDirection: "row",
-                      flexWrap: "wrap",
+                      width: 200,
+                      height: 200,
+                      borderRadius: 12,
                       marginTop: 8,
                     }}
-                  >
-                    {post.images.map((img, idx) => (
-                      <Image
-                        key={idx}
-                        source={{ uri: img }}
-                        style={{
-                          width: 80,
-                          height: 80,
-                          borderRadius: 8,
-                          marginRight: 8,
-                          marginBottom: 8,
-                        }}
-                        resizeMode="cover"
-                      />
-                    ))}
-                  </View>
+                    resizeMode="cover"
+                  />
                 )}
                 {/* Add more fields/images as needed */}
               </View>
