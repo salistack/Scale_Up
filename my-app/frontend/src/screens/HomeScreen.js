@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Modal,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HomeScreen = () => {
@@ -18,6 +19,7 @@ const HomeScreen = () => {
   const [userName, setUserName] = useState("");
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
+  const navigation = useNavigation();
 
   const loadUserAndPosts = async () => {
     // Get user name
@@ -65,6 +67,12 @@ const HomeScreen = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.greetingSection}>
         <Text style={styles.greeting}>Good morning, {userName}!</Text>
+        <TouchableOpacity
+          style={styles.ctaButton}
+          onPress={() => navigation.getParent()?.navigate("InvestorFeed")}
+        >
+          <Text style={styles.ctaText}>Investor Feeds</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView style={{ flex: 1 }}>
         <View style={styles.feedSection}>
@@ -406,24 +414,26 @@ const styles = StyleSheet.create({
   ctaButton: {
     flexDirection: "row",
     backgroundColor: "#6750A4",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     marginHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 12,
+    width: 150,
+    alignSelf: 'flex-start',
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#6750A4",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   ctaText: {
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginRight: 10,
+    fontSize: 14,
+    fontWeight: "600",
+    marginRight: 6,
   },
   aiTipPanel: {
     backgroundColor: "#FFF9E6",
