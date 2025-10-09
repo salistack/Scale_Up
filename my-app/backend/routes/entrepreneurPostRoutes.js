@@ -23,8 +23,8 @@ const {
   deletePost,
 } = require("../controllers/entrepreneurPostController");
 
-// Use upload.single('image') for image upload
-router.post("/", auth, upload.single("image"), createPost);
+// Use upload.array('images', 10) for multiple image upload
+router.post("/", auth, upload.array("images", 10), createPost);
 router.get("/", auth, getAllPosts);
 router.put("/:id", auth, updatePost);
 router.delete("/:id", auth, deletePost);
