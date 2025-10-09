@@ -8,11 +8,14 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HomeScreen = () => {
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuPostId, setMenuPostId] = useState(null);
   const [userName, setUserName] = useState("");
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
@@ -32,7 +35,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        "http://192.168.1.101:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -79,13 +82,58 @@ const HomeScreen = () => {
           ) : (
             posts.map((post) => (
               <View key={post._id} style={styles.feedCard}>
-                {/* Show poster's name above business title */}
-                <Text style={styles.feedAuthorName}>
-                  {post.user && post.user.name ? post.user.name : "Unknown"}
-                </Text>
+                {/* Show poster's name and menu button in a row */}
+                <View style={styles.feedCardTopRow}>
+                  <Text style={styles.feedAuthorName}>
+                    {post.user && post.user.name ? post.user.name : "Unknown"}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.menuButton}
+                    onPress={() => {
+                      setMenuVisible(true);
+                      setMenuPostId(post._id);
+                    }}
+                  >
+                    <Text style={styles.menuDots}>⋯</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.feedHeader}>
                   <Text style={styles.feedTitle}>{post.businessTitle}</Text>
                 </View>
+                {/* Menu Modal */}
+                {menuVisible && menuPostId === post._id && (
+                  <Modal
+                    transparent
+                    animationType="fade"
+                    visible={menuVisible}
+                    onRequestClose={() => setMenuVisible(false)}
+                  >
+                    <TouchableOpacity
+                      style={styles.menuOverlay}
+                      activeOpacity={1}
+                      onPress={() => setMenuVisible(false)}
+                    >
+                      <View style={styles.menuContainer}>
+                        <TouchableOpacity
+                          style={styles.menuItem}
+                          onPress={() => {
+                            /* TODO: handle update */ setMenuVisible(false);
+                          }}
+                        >
+                          <Text style={styles.menuText}>Update</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.menuItem}
+                          onPress={() => {
+                            /* TODO: handle delete */ setMenuVisible(false);
+                          }}
+                        >
+                          <Text style={styles.menuText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+                  </Modal>
+                )}
                 {expandedPostId === post._id && post.longDescription ? (
                   <Text style={styles.feedDescription}>
                     {post.longDescription}
@@ -136,6 +184,33 @@ const HomeScreen = () => {
                   </ScrollView>
                 )}
                 {/* Add more fields/images as needed */}
+                <View style={styles.feedcardBottom}>
+                  <View style={styles.feedcardLike}>
+                    <Text style={styles.feedLike}>like</Text>
+                  </View>
+                  <View style={styles.feedcardActions}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        /* TODO: handle download */
+                      }}
+                    >
+                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
+                        download
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => {
+                        /* TODO: handle qr */
+                      }}
+                    >
+                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
+                        qr
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             ))
           )}
@@ -146,9 +221,90 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  feedCardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  menuButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    //backgroundColor: "#fffefeff",
+  },
+  menuDots: {
+    fontSize: 24,
+    color: "#666",
+    fontWeight: "bold",
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    elevation: 5,
+    minWidth: 120,
+  },
+  menuItem: {
+    paddingVertical: 10,
+  },
+  menuText: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "bold",
+  },
+  feedcardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  actionBtn: {
+    backgroundColor: "#6750A4",
+    color: "#ffffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginLeft: 8,
+    fontWeight: "bold",
+    fontSize: 13,
+    overflow: "hidden",
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  feedcardBottom: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    borderTopWidth: 3,
+    borderTopColor: "#6750A4",
+    backgroundColor: "#ffffffff",
+    paddingVertical: 10,
+  },
+  feedcardLike: {
+    display: "flex",
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fdfcfcff",
+  },
+  feedLike: {
+    color: "#6750A4",
+    fontWeight: "600",
+    //backgroundColor: "#cf0000ff",
+    //alignContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   header: {
     flexDirection: "row",
@@ -300,7 +456,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   feedSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingBottom: 80,
   },
   feedHeader: {
@@ -322,13 +478,17 @@ const styles = StyleSheet.create({
   feedCard: {
     backgroundColor: "#F8F9FA",
     borderRadius: 12,
-    padding: 15,
-    marginBottom: 15,
-    shadowColor: "#000",
+    padding: 10,
+    marginBottom: 25,
+    shadowColor: "#6750A4",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 5,
+    elevation: 10,
+    //border: "10px solid #000000ff",
+    //borderColor: "#a60b9c",
+    borderWidth: 1,
+    borderColor: "rgba(158, 31, 249, 0.2)",
   },
   feedHeader: {
     flexDirection: "row",
@@ -402,14 +562,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 2,
+    borderColor: "#a60b9c",
   },
   navItem: {
     padding: 10,
