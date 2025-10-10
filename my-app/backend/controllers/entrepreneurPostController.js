@@ -10,7 +10,7 @@ exports.createPost = async (req, res) => {
     // If you want to support multiple images, you can handle req.files here
 
     const post = new EntrepreneurPost({
-      user: req.user,
+      user: req.user.id,
       businessTitle: req.body.businessTitle,
       tagline: req.body.tagline,
       industry: req.body.industry,
@@ -23,6 +23,7 @@ exports.createPost = async (req, res) => {
     const savedPost = await post.save();
     res.status(201).json({ msg: "Post created", post: savedPost });
   } catch (err) {
+    console.error("Error in createPost:", err); // Log error to console
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 };

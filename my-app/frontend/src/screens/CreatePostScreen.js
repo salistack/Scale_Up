@@ -87,6 +87,32 @@ const CreatePostScreen = () => {
     }
   };
 
+  const handleMentorSubmit = async () => {
+    try {
+      const response = await fetch("http://192.168.178.202:5000/api/mentors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: mentorName,
+          expertise: mentorExpertise,
+          bio: mentorBio,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Mentor profile submitted!");
+        setMentorName("");
+        setMentorExpertise("");
+        setMentorBio("");
+        navigation.navigate("HomeTabs");
+      } else {
+        alert(data.msg || "Failed to submit mentor profile");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
   const [businessTitle, setBusinessTitle] = useState("");
   const [tagline, setTagline] = useState("");
   const [industry, setIndustry] = useState("");
@@ -95,6 +121,9 @@ const CreatePostScreen = () => {
   const [fundAmount, setFundAmount] = useState("");
   const [otherNeeds, setOtherNeeds] = useState("");
   const [selectedImages, setSelectedImages] = useState([]);
+  const [mentorName, setMentorName] = useState("");
+  const [mentorExpertise, setMentorExpertise] = useState("");
+  const [mentorBio, setMentorBio] = useState("");
 
   const industries = [
     "Technology",
@@ -173,10 +202,25 @@ const CreatePostScreen = () => {
         <TouchableOpacity
           style={[
             styles.formSwitchBtn,
+            activeForm === "mentor" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("mentor")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "mentor" && styles.formSwitchTextActive,
+            ]}
+          >
+            Mentor
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
             activeForm === "investor" && styles.formSwitchBtnActive,
           ]}
           onPress={() => {
-            // navigate to the separate InvestorForm screen under /src/screens
             const parentNav = navigation.getParent && navigation.getParent();
             if (parentNav) parentNav.navigate("InvestorForm");
             else navigation.navigate("InvestorForm");
@@ -342,11 +386,46 @@ const CreatePostScreen = () => {
           </>
         )}
         {activeForm === "mentor" && (
-          <View style={styles.placeholderForm}>
-            <Text style={styles.placeholderText}>
-              Mentor Form (to be implemented)
-            </Text>
-          </View>
+          <>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your name"
+              value={mentorName}
+              onChangeText={setMentorName}
+            />
+            <Text style={styles.label}>Area of Expertise</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Eg: Marketing, Finance, Tech"
+              value={mentorExpertise}
+              onChangeText={setMentorExpertise}
+            />
+            <Text style={styles.label}>Short Bio</Text>
+            <TextInput
+              style={[styles.inputField, { height: 80 }]}
+              placeholder="Tell us about yourself"
+              value={mentorBio}
+              onChangeText={setMentorBio}
+              multiline
+            />
+            <TouchableOpacity
+              style={styles.postButton}
+              onPress={handleMentorSubmit}
+            >
+              <Text style={styles.postButtonText}>Submit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setMentorName("");
+                setMentorExpertise("");
+                setMentorBio("");
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
         )}
         {activeForm === "investor" && (
           <View style={styles.placeholderForm}>
