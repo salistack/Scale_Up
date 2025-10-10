@@ -5,14 +5,15 @@ const nodemailer = require("nodemailer");
 // Create Proposal
 exports.createProposal = async (req, res) => {
   try {
-    console.log("Request userId:", req.user); // Should log userId
+    console.log("Request userId:", req.user); // Should log user info or id
 
     if (!req.user) return res.status(401).json({ msg: "Unauthorized: user not found" });
 
     const { investmentAmount, fundingType, expectedROI, interestLevel, description } = req.body;
 
+    // ✅ FIX: use req.user.id or req.user._id (string, not object)
     const proposal = new InvestorProposal({
-      investor: req.user,
+      investor: req.user.id || req.user._id,
       investmentAmount,
       fundingType,
       expectedROI,
@@ -47,7 +48,8 @@ exports.updateProposal = async (req, res) => {
     const proposal = await InvestorProposal.findById(req.params.id);
     if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-    if (proposal.investor.toString() !== req.user)
+    // ✅ FIX: use req.user.id or req.user._id consistently
+    if (proposal.investor.toString() !== (req.user.id || req.user._id))
       return res.status(401).json({ msg: "Not authorized" });
 
     Object.assign(proposal, req.body);
@@ -63,14 +65,11 @@ exports.updateProposal = async (req, res) => {
 exports.deleteProposal = async (req, res) => {
   try {
     const proposal = await InvestorProposal.findById(req.params.id);
-    if (!proposal) {
-      return res.status(404).json({ msg: "Proposal not found" });
-    }
+    if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-    // Check if logged-in user is the owner
-    if (proposal.investor.toString() !== req.user) {
+    // ✅ FIX: same consistency here
+    if (proposal.investor.toString() !== (req.user.id || req.user._id))
       return res.status(401).json({ msg: "Not authorized" });
-    }
 
     await InvestorProposal.findByIdAndDelete(req.params.id);
     res.json({ msg: "Proposal deleted successfully" });
@@ -80,21 +79,17 @@ exports.deleteProposal = async (req, res) => {
   }
 };
 
-
-
 // Send interest email
 exports.sendInterestEmail = async (req, res) => {
   try {
-    // Get proposal and investor info
     const proposal = await InvestorProposal.findById(req.params.id)
       .populate("investor", "email name");
     if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-    // Get entrepreneur info (from logged-in user)
-    const entrepreneur = await User.findById(req.user).select("name email");
+    // ✅ FIX: get entrepreneur properly using ID only
+    const entrepreneur = await User.findById(req.user.id || req.user._id).select("name email");
     if (!entrepreneur) return res.status(404).json({ msg: "Entrepreneur not found" });
 
-    // Email setup
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -118,8 +113,7 @@ exports.sendInterestEmail = async (req, res) => {
   }
 };
 
-
-// ✅ Get proposal by ID
+// Get proposal by ID
 exports.getProposalById = async (req, res) => {
   try {
     const proposal = await InvestorProposal.findById(req.params.id)

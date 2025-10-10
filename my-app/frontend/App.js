@@ -1,7 +1,7 @@
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createStackNavigator } from "@react-navigation/stack";
 
 // Import stack screens
 import LoginScreen from "./src/screens/LoginScreen";
@@ -9,11 +9,12 @@ import SignupScreen from "./src/screens/SignUp";
 import InvestorForm from "./src/screens/InvestorForm";
 import InvestorFeed from "./src/screens/InvestorFeed";
 import EditProposal from "./src/screens/EditProposal";
+import CreatePostScreen from "./src/screens/CreatePostScreen";
 
 // Import Bottom Tabs
 import BottomTabs from "./src/navigation/BottomTabs";
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 export default function App() {
   return (
@@ -48,6 +49,11 @@ export default function App() {
             name="SignUp"
             component={SignupScreen}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CreatePostScreen"
+            component={CreatePostScreen}
+            options={{ title: "Create Post" }}
           />
         </Stack.Navigator>
       </NavigationContainer>

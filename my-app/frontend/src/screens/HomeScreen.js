@@ -33,7 +33,6 @@ const HomeScreen = () => {
         // Refresh posts after deletion
         loadUserAndPosts();
       } else {
-        // Optionally show error
         alert("You can only delete your own posts.");
       }
     } catch (err) {
@@ -45,6 +44,7 @@ const HomeScreen = () => {
   const [userName, setUserName] = useState("");
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
+  const [mentors, setMentors] = useState([]);
   const navigation = useNavigation();
 
   const loadUserAndPosts = async () => {
@@ -82,6 +82,13 @@ const HomeScreen = () => {
       console.error("Failed to fetch posts", err);
     }
   };
+
+  useEffect(() => {
+    fetch("http://192.168.8.101:5000/api/mentors")
+      .then((res) => res.json())
+      .then((data) => setMentors(data))
+      .catch(() => setMentors([]));
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -265,6 +272,20 @@ const HomeScreen = () => {
                     </TouchableOpacity>
                   </View>
                 </View>
+              </View>
+            ))
+          )}
+        </View>
+        <View style={styles.mentorSection}>
+          <Text style={styles.sectionTitle}>Mentor Profiles</Text>
+          {mentors.length === 0 ? (
+            <Text style={styles.noMentor}>No mentors yet.</Text>
+          ) : (
+            mentors.map((mentor, idx) => (
+              <View key={idx} style={styles.mentorCard}>
+                <Text style={styles.mentorName}>{mentor.name}</Text>
+                <Text style={styles.mentorExpertise}>{mentor.expertise}</Text>
+                <Text style={styles.mentorBio}>{mentor.bio}</Text>
               </View>
             ))
           )}
@@ -630,6 +651,34 @@ const styles = StyleSheet.create({
   },
   navItem: {
     padding: 10,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginVertical: 12,
+  },
+  noMentor: {
+    color: "#888",
+    fontStyle: "italic",
+    marginBottom: 12,
+  },
+  mentorCard: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  mentorName: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  mentorExpertise: {
+    fontSize: 14,
+    color: "#6750A4",
+  },
+  mentorBio: {
+    fontSize: 13,
+    color: "#333",
   },
 });
 
