@@ -58,19 +58,38 @@ exports.updatePost = async (req, res) => {
 
 // Delete post (only owner)
 exports.deletePost = async (req, res) => {
+  // Debug: print both IDs for comparison
+  // (move after post is defined)
   try {
     const post = await EntrepreneurPost.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ msg: "Post not found" });
     }
 
+    // Debug: print both IDs for comparison
+    console.log(
+      "Post user:",
+      post.user.toString(),
+      "Req user id:",
+      req.user.id
+    );
+
     // Check if logged-in user is the owner
-    if (post.user.toString() !== req.user) {
-      return res.status(401).json({ msg: "Not authorized" });
+    if (post.user.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ msg: "Not authorized to delete this post" });
     }
 
-    await EntrepreneurPost.findByIdAndDelete(req.params.id);
-    res.json({ msg: "Post deleted successfully" });
+    try {
+      await EntrepreneurPost.findByIdAndDelete(req.params.id);
+      res.json({ msg: "Post deleted successfully" });
+    } catch (err) {
+      console.error("Error removing post:", err);
+      return res
+        .status(500)
+        .json({ msg: "Error deleting post", error: err.message });
+    }
   } catch (err) {
     res.status(500).json({ msg: "Server error", error: err.message });
   }
