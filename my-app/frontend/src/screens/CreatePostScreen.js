@@ -173,6 +173,22 @@ const CreatePostScreen = () => {
         <TouchableOpacity
           style={[
             styles.formSwitchBtn,
+            activeForm === "mentor" && styles.formSwitchBtnActive,
+          ]}
+          onPress={() => setActiveForm("mentor")}
+        >
+          <Text
+            style={[
+              styles.formSwitchText,
+              activeForm === "mentor" && styles.formSwitchTextActive,
+            ]}
+          >
+            Mentor
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.formSwitchBtn,
             activeForm === "investor" && styles.formSwitchBtnActive,
           ]}
           onPress={() => {
