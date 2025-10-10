@@ -42,7 +42,7 @@ const InvestorForm = ({ navigation }) => {
 
       // The backend mounts investor proposal routes at /api/proposals
       const response = await fetch(
-        "http://192.168.1.121:5000/api/proposals",
+        "http://192.168.8.101:5000/api/proposals",
         {
           method: "POST",
           headers: {
