@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
@@ -7,11 +15,22 @@ import Constants from "expo-constants";
 const InvestorFeed = ({ navigation }) => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
+        const storedUser = await AsyncStorage.getItem("user");
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            setCurrentUserId(parsed._id || parsed.id || parsed.userId || null);
+          } catch {
+            setCurrentUserId(storedUser);
+          }
+        }
+
         const res = await fetch("http://192.168.8.101:5000/api/proposals", {
           headers: { "Content-Type": "application/json" },
         });
@@ -20,9 +39,7 @@ const InvestorFeed = ({ navigation }) => {
           setProposals([]);
         } else {
           const data = await res.json();
-          if (Array.isArray(data)) setProposals(data);
-          else if (data && Array.isArray(data.proposals)) setProposals(data.proposals);
-          else setProposals([]);
+          setProposals(Array.isArray(data) ? data : data.proposals || []);
         }
       } catch (err) {
         console.error("Error fetching proposals:", err);
@@ -34,155 +51,544 @@ const InvestorFeed = ({ navigation }) => {
     load();
   }, []);
 
+  // --- Existing working contact() logic preserved ---
   const contact = async (id) => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) { Alert.alert('Login required','Please log in to contact investors'); return; }
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Login required", "Please log in to contact investors");
+        return;
+      }
 
       const hosts = [];
-      const debuggerHost = Constants.manifest?.debuggerHost || Constants.manifest2?.packagerOpts?.devClient?.url;
+      const debuggerHost =
+        Constants.manifest?.debuggerHost ||
+        Constants.manifest2?.packagerOpts?.devClient?.url;
       if (debuggerHost) {
         const hostFromPackager = debuggerHost.split(":")[0];
         if (hostFromPackager) hosts.push(hostFromPackager);
       }
-      hosts.push('192.168.8.101', 'localhost', '127.0.0.1', '10.0.2.2');
+      hosts.push("192.168.8.101", "localhost", "127.0.0.1", "10.0.2.2");
 
       let lastErr = null;
       let ok = false;
       for (const host of hosts) {
         const url = `http://${host}:5000/api/proposals/email/${id}`;
         try {
-          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
           const json = await res.json();
           if (res.ok) {
-            Alert.alert('Done', json.msg || 'Investor notified');
+            Alert.alert("Done", json.msg || "Investor notified");
             ok = true;
             break;
-          } else {
-            lastErr = json;
-          }
+          } else lastErr = json;
         } catch (err) {
           lastErr = err;
         }
       }
       if (!ok) {
-        console.error('Contact action failed', lastErr);
-        Alert.alert('Error', lastErr?.msg || lastErr?.message || 'Failed to contact investor');
+        console.error("Contact action failed", lastErr);
+        Alert.alert(
+          "Error",
+          lastErr?.msg || lastErr?.message || "Failed to contact investor"
+        );
       }
-    } catch (err) { console.error(err); Alert.alert('Error', err.message); }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", err.message);
+    }
+  };
+
+  // --- Keep delete and edit untouched ---
+  const handleDelete = async (id) => {
+    Alert.alert(
+      "Delete Proposal",
+      "Are you sure you want to delete this proposal?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("token");
+              if (!token) {
+                Alert.alert("Error", "Authentication required");
+                return;
+              }
+
+              const res = await fetch(
+                `http://192.168.8.101:5000/api/proposals/${id}`,
+                {
+                  method: "DELETE",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+
+              if (res.ok) {
+                setProposals(proposals.filter((p) => p._id !== id));
+                Alert.alert("Success", "Proposal deleted successfully");
+              } else {
+                const data = await res.json();
+                Alert.alert("Error", data.msg || "Failed to delete proposal");
+              }
+            } catch (err) {
+              console.error("Delete error:", err);
+              Alert.alert("Error", "Failed to delete proposal");
+            }
+          },
+        },
+      ]
+    );
+  };
+  
+  const handleEdit = (proposal) => navigation.navigate("EditProposal", { id: proposal._id });
+
+  const getRelativeTime = (date) => {
+    if (!date) return "";
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+    
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+    return `${Math.floor(diff / 604800)}w`;
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Investor Feed</Text>
-      <ScrollView contentContainerStyle={styles.list}>
-          {loading ? (
+      {/* Modern Header */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Investment Feed</Text>
+        <View style={styles.headerDivider} />
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6750A4" />
-          ) : proposals.length === 0 ? (
-            <Text style={{ color: '#666' }}>No proposals found. Check backend is running and use correct host (localhost vs LAN IP).</Text>
-          ) : (
-            proposals.map((p) => {
-              const investorName = (p.investor && p.investor.name) || "Investor";
-              const createdAt = p.createdAt ? new Date(p.createdAt) : null;
-              const timeLabel = createdAt
-                ? createdAt.toLocaleDateString() + " " + createdAt.toLocaleTimeString()
-                : "";
-              const initials = investorName
-                .split(" ")
-                .map((s) => s[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase();
+            <Text style={styles.loadingText}>Loading opportunities...</Text>
+          </View>
+        ) : proposals.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>💼</Text>
+            <Text style={styles.emptyTitle}>No Investment Opportunities</Text>
+            <Text style={styles.emptyText}>
+              Check your network connection or try again later
+            </Text>
+          </View>
+        ) : (
+          proposals.map((p) => {
+            const investorName = p.investor?.name || "Investor";
+            const createdAt = p.createdAt ? new Date(p.createdAt) : null;
+            const timeLabel = getRelativeTime(createdAt);
+            const initials = investorName
+              .split(" ")
+              .map((s) => s[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase();
 
-              return (
-                <View key={p._id} style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <View style={styles.avatar}><Text style={{color:'#fff',fontWeight:'700'}}>{initials}</Text></View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.nameText}>{investorName}</Text>
-                      <Text style={styles.timeText}>{timeLabel}</Text>
-                    </View>
+            return (
+              <View key={p._id} style={styles.card}>
+                {/* Post Header - LinkedIn/Instagram Style */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initials}</Text>
                   </View>
-
-                  <Text style={styles.postTitle}>
-                    {p.fundingType || "Investment"} • {p.investmentAmount || "-"}
-                  </Text>
-
-                  <Text style={styles.postBody}>{p.description}</Text>
-
-                  <View style={styles.tagsRow}>
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>{p.fundingType || "N/A"}</Text>
-                    </View>
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>ROI: {p.expectedROI ?? "-"}%</Text>
-                    </View>
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>Interest: {p.interestLevel ?? "-"}</Text>
-                    </View>
+                  <View style={styles.headerInfo}>
+                    <Text style={styles.name}>{investorName}</Text>
+                    <Text style={styles.time}>{timeLabel}</Text>
                   </View>
+                  <TouchableOpacity style={styles.moreButton}>
+                    <Text style={styles.moreIcon}>⋯</Text>
+                  </TouchableOpacity>
+                </View>
 
-                  <View style={styles.cardFooter}>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => contact(p._id)}
-                    >
-                      <Text style={styles.actionText}>Contact</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.secondaryBtn]}
-                      onPress={() => Alert.alert("Saved", "Saved to bookmarks (not implemented)")}
-                    >
-                      <Text style={[styles.actionText, styles.secondaryText]}>Save</Text>
-                    </TouchableOpacity>
+                {/* Investment Highlight Banner */}
+                <View style={styles.highlightBanner}>
+                  <View style={styles.highlightLeft}>
+                    <Text style={styles.fundingType}>{p.fundingType || "Investment"}</Text>
+                    <Text style={styles.amount}>{p.investmentAmount || "-"}</Text>
+                  </View>
+                  <View style={styles.roiBadge}>
+                    <Text style={styles.roiText}>ROI {p.expectedROI ?? "-"}%</Text>
                   </View>
                 </View>
-              );
-            })
-          )}
+
+                {/* Post Content */}
+                <Text style={styles.postBody} numberOfLines={4}>
+                  {p.description}
+                </Text>
+
+                {/* Tags - Instagram Story Style */}
+                <View style={styles.tags}>
+                  <View style={styles.tag}>
+                    <Text style={styles.tagIcon}>📊</Text>
+                    <Text style={styles.tagText}>{p.fundingType || "N/A"}</Text>
+                  </View>
+                  <View style={styles.tag}>
+                    <Text style={styles.tagIcon}>📈</Text>
+                    <Text style={styles.tagText}>Interest: {p.interestLevel ?? "-"}</Text>
+                  </View>
+                </View>
+
+                {/* Engagement Metrics - Facebook/LinkedIn Style */}
+                <View style={styles.metricsRow}>
+                  <View style={styles.metric}>
+                    <Text style={styles.metricIcon}>👁️</Text>
+                    <Text style={styles.metricText}>256 views</Text>
+                  </View>
+                  <View style={styles.metric}>
+                    <Text style={styles.metricIcon}>💬</Text>
+                    <Text style={styles.metricText}>12 interested</Text>
+                  </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Action Buttons - Modern Social Media Style */}
+                <View style={styles.footer}>
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => contact(p._id)}
+                  >
+                    <Text style={styles.actionIcon}>💼</Text>
+                    <Text style={styles.actionText}>Connect</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() =>
+                      Alert.alert("Saved", "Saved to bookmarks (not implemented)")
+                    }
+                  >
+                    <Text style={styles.actionIcon}>🔖</Text>
+                    <Text style={styles.actionText}>Save</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() =>
+                      Alert.alert("Share", "Share feature coming soon")
+                    }
+                  >
+                    <Text style={styles.actionIcon}>📤</Text>
+                    <Text style={styles.actionText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Owner Actions - Only shown if user owns the post */}
+                {(() => {
+                  const ownerId =
+                    typeof p.investor === "string"
+                      ? p.investor
+                      : p.investor?._id || p.investor?.id;
+                  if (
+                    currentUserId &&
+                    ownerId &&
+                    currentUserId.toString() === ownerId.toString()
+                  ) {
+                    return (
+                      <View style={styles.ownerActions}>
+                        <View style={styles.divider} />
+                        <View style={styles.ownerButtonsRow}>
+                          <TouchableOpacity
+                            style={styles.ownerBtn}
+                            onPress={() => handleEdit(p)}
+                          >
+                            <Text style={styles.ownerBtnText}>✏️ Edit Post</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.ownerBtn, styles.deleteOwnerBtn]}
+                            onPress={() => handleDelete(p._id)}
+                          >
+                            <Text style={[styles.ownerBtnText, styles.deleteText]}>🗑️ Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
+              </View>
+            );
+          })
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// --- Enhanced Modern UI Styles ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  title: { fontSize: 20, fontWeight: 'bold', padding: 16 },
-  list: { padding: 16 },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#F0F2F5" 
+  },
+  headerContainer: {
+    backgroundColor: "#fff",
+    paddingBottom: 0,
+  },
+  header: {
+    fontSize: 26,
+    fontWeight: "700",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    color: "#1C1E21",
+    letterSpacing: 0.3,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: "#E4E6EB",
+  },
+  scroll: { 
+    paddingTop: 12,
+    paddingBottom: 40 
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: "#65676B",
+    fontWeight: "500",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1C1E21",
+    marginBottom: 8,
+  },
+  emptyText: { 
+    color: "#65676B", 
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 20,
+  },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E6E6E6',
-    shadowColor: '#000',
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    elevation: 2,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  cardHeader: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#6750A4',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#6750A4",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
-  nameText: { fontWeight: '700', fontSize: 15 },
-  timeText: { fontSize: 12, color: '#888' },
-  postTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  postBody: { fontSize: 14, color: '#333', marginBottom: 10 },
-  tagsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  tag: { backgroundColor: '#F1F3F8', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20 },
-  tagText: { fontSize: 12, color: '#333' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'flex-start', gap: 10 },
-  actionBtn: { backgroundColor: '#6750A4', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8 },
-  actionText: { color: '#fff', fontWeight: '700' },
-  secondaryBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E6E6E6', marginLeft: 8 },
-  secondaryText: { color: '#333' },
+  avatarText: { 
+    color: "#fff", 
+    fontWeight: "700", 
+    fontSize: 18 
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  name: { 
+    fontWeight: "700", 
+    fontSize: 16, 
+    color: "#1C1E21",
+    marginBottom: 2,
+  },
+  time: { 
+    fontSize: 13, 
+    color: "#65676B",
+    fontWeight: "400",
+  },
+  moreButton: {
+    padding: 8,
+  },
+  moreIcon: {
+    fontSize: 20,
+    color: "#65676B",
+    fontWeight: "700",
+  },
+  highlightBanner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F7F5FF",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#6750A4",
+  },
+  highlightLeft: {
+    flex: 1,
+  },
+  fundingType: {
+    fontSize: 13,
+    color: "#6750A4",
+    fontWeight: "600",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  amount: { 
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1C1E21",
+  },
+  roiBadge: {
+    backgroundColor: "#6750A4",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  roiText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  postBody: { 
+    fontSize: 15, 
+    color: "#1C1E21", 
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  tags: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E7F3FF",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    gap: 4,
+  },
+  tagIcon: {
+    fontSize: 12,
+  },
+  tagText: {
+    color: "#1877F2",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  metricsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 20,
+  },
+  metric: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  metricIcon: {
+    fontSize: 14,
+  },
+  metricText: {
+    fontSize: 13,
+    color: "#65676B",
+    fontWeight: "500",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E4E6EB",
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  footer: { 
+    flexDirection: "row", 
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    gap: 6,
+  },
+  actionIcon: {
+    fontSize: 18,
+  },
+  actionText: {
+    color: "#65676B",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  ownerActions: {
+    marginTop: 4,
+  },
+  ownerButtonsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  ownerBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#F0F2F5",
+    alignItems: "center",
+  },
+  deleteOwnerBtn: {
+    backgroundColor: "#FFE8E8",
+  },
+  ownerBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1C1E21",
+  },
+  deleteText: {
+    color: "#E53935",
+  },
 });
 
 export default InvestorFeed;
