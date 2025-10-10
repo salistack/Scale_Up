@@ -7,12 +7,14 @@ const {
   updateProposal,
   deleteProposal,
   sendInterestEmail,
+  getProposalById,
 } = require("../controllers/investorProposalController");
 
 router.post("/", auth, createProposal);
-router.get("/", auth, getAllProposals);
+router.get("/",  getAllProposals);
 router.put("/:id", auth, updateProposal);
 router.delete("/:id", auth, deleteProposal);
 router.post("/email/:id", auth, sendInterestEmail);
+router.get("/:id", auth, getProposalById);
 
 module.exports = router;

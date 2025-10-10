@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigation } from "@react-navigation/native";
 //import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
   const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
+  const navigation = useNavigation();
   const removeImage = (idx) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
     setActiveIdx(null);
@@ -24,34 +26,55 @@ const CreatePostScreen = () => {
 
   const handlePost = async () => {
     try {
-      // Get JWT token if your backend requires it
       const token = await AsyncStorage.getItem("token");
-
-      // Prepare form data
-      const postData = {
-        businessTitle,
-        tagline,
-        industry,
-        shortDescription,
-        longDescription,
-        fundAmount,
-        otherNeeds,
-        images: selectedImages, // array of image URLs/paths
-      };
-
-      // Send POST request to backend
+      const formData = new FormData();
+      formData.append("businessTitle", businessTitle);
+      formData.append("tagline", tagline);
+      formData.append("industry", industry);
+      formData.append("shortDescription", shortDescription);
+      formData.append("longDescription", longDescription);
+      formData.append("fundAmount", fundAmount);
+      formData.append("otherNeeds", otherNeeds);
+      // Debug: log all selectedImages before upload
+      if (selectedImages.length > 0) {
+        for (const asset of selectedImages) {
+          console.log("Uploading asset:", asset);
+          if (asset.uri.startsWith("blob:")) {
+            // Web: convert blob URI to File/Blob
+            try {
+              const response = await fetch(asset.uri);
+              const blob = await response.blob();
+              formData.append("images", blob, asset.fileName || "photo.jpg");
+            } catch (err) {
+              console.log("Error converting blob URI to file:", err);
+            }
+          } else if (asset.file) {
+            // Web: use File object directly
+            formData.append(
+              "images",
+              asset.file,
+              asset.fileName || "photo.jpg"
+            );
+          } else {
+            // Native: use correct property names
+            formData.append("images", {
+              uri: asset.uri,
+              type: asset.mimeType || "image/jpeg",
+              name: asset.fileName || "photo.jpg",
+            });
+          }
+        }
+      }
       const response = await fetch(
         "http://192.168.1.121:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             ...(token && { Authorization: `Bearer ${token}` }),
           },
-          body: JSON.stringify(postData),
+          body: formData,
         }
       );
-
       const data = await response.json();
       if (response.ok) {
         alert("Post created successfully!");
@@ -119,7 +142,7 @@ const CreatePostScreen = () => {
     if (!result.canceled) {
       setSelectedImages((prev) => [
         ...prev,
-        ...result.assets.map((asset) => asset.uri),
+        ...result.assets, // store full asset objects
       ]);
     }
   };
@@ -150,25 +173,14 @@ const CreatePostScreen = () => {
         <TouchableOpacity
           style={[
             styles.formSwitchBtn,
-            activeForm === "mentor" && styles.formSwitchBtnActive,
-          ]}
-          onPress={() => setActiveForm("mentor")}
-        >
-          <Text
-            style={[
-              styles.formSwitchText,
-              activeForm === "mentor" && styles.formSwitchTextActive,
-            ]}
-          >
-            Mentor
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.formSwitchBtn,
             activeForm === "investor" && styles.formSwitchBtnActive,
           ]}
-          onPress={() => setActiveForm("investor")}
+          onPress={() => {
+            // navigate to the separate InvestorForm screen under /src/screens
+            const parentNav = navigation.getParent && navigation.getParent();
+            if (parentNav) parentNav.navigate("InvestorForm");
+            else navigation.navigate("InvestorForm");
+          }}
         >
           <Text
             style={[
@@ -276,7 +288,7 @@ const CreatePostScreen = () => {
 
             {selectedImages.length > 0 && (
               <ScrollView horizontal style={{ marginTop: 10 }}>
-                {selectedImages.map((uri, idx) => (
+                {selectedImages.map((asset, idx) => (
                   <View
                     key={idx}
                     style={styles.imageWrapper}
@@ -289,7 +301,10 @@ const CreatePostScreen = () => {
                       onPressOut={() => setActiveIdx(null)}
                       style={{ width: 100, height: 100 }}
                     >
-                      <Image source={{ uri }} style={styles.uploadedImage} />
+                      <Image
+                        source={{ uri: asset.uri }}
+                        style={styles.uploadedImage}
+                      />
                       {activeIdx === idx && (
                         <TouchableOpacity
                           style={styles.removeImageBtn}

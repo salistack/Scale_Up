@@ -85,14 +85,16 @@ exports.deleteProposal = async (req, res) => {
 // Send interest email
 exports.sendInterestEmail = async (req, res) => {
   try {
+    // Get proposal and investor info
     const proposal = await InvestorProposal.findById(req.params.id)
       .populate("investor", "email name");
     if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
 
-    const { entrepreneurName, entrepreneurEmail } = req.body;
-    if (!entrepreneurName || !entrepreneurEmail)
-      return res.status(400).json({ msg: "Entrepreneur name and email are required" });
+    // Get entrepreneur info (from logged-in user)
+    const entrepreneur = await User.findById(req.user).select("name email");
+    if (!entrepreneur) return res.status(404).json({ msg: "Entrepreneur not found" });
 
+    // Email setup
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -104,8 +106,8 @@ exports.sendInterestEmail = async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: proposal.investor.email,
-      subject: "Interest in Your Investment Proposal",
-      text: `${entrepreneurName} (${entrepreneurEmail}) has shown interest in your funding proposal!`,
+      subject: "Someone is interested in your proposal!",
+      text: `${entrepreneur.name} (${entrepreneur.email}) is interested in your investment proposal: "${proposal.description}".`,
     };
 
     await transporter.sendMail(mailOptions);
@@ -113,5 +115,19 @@ exports.sendInterestEmail = async (req, res) => {
   } catch (err) {
     console.error("Error sending email:", err);
     res.status(500).json({ msg: "Failed to send email", error: err.message });
+  }
+};
+
+
+// ✅ Get proposal by ID
+exports.getProposalById = async (req, res) => {
+  try {
+    const proposal = await InvestorProposal.findById(req.params.id)
+      .populate("investor", "name email");
+    if (!proposal) return res.status(404).json({ msg: "Proposal not found" });
+    res.json(proposal);
+  } catch (err) {
+    console.error("Error fetching proposal by ID:", err);
+    res.status(500).json({ msg: "Server error", error: err.message });
   }
 };

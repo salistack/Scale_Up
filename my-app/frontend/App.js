@@ -6,6 +6,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 // Import stack screens
 import LoginScreen from "./src/screens/LoginScreen";
 import SignupScreen from "./src/screens/SignUp";
+import InvestorForm from "./src/screens/InvestorForm";
+import InvestorFeed from "./src/screens/InvestorFeed";
+import EditProposal from "./src/screens/EditProposal";
 
 // Import Bottom Tabs
 import BottomTabs from "./src/navigation/BottomTabs";
@@ -30,6 +33,17 @@ export default function App() {
             component={BottomTabs}
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+            name="InvestorForm"
+            component={InvestorForm}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="InvestorFeed"
+            component={InvestorFeed}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="EditProposal" component={EditProposal} options={{ headerShown: false }} />
           <Stack.Screen
             name="SignUp"
             component={SignupScreen}
