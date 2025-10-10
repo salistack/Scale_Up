@@ -14,6 +14,30 @@ import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HomeScreen = () => {
+  const handleDeletePost = async (postId) => {
+    const token = await AsyncStorage.getItem("token");
+    try {
+      const response = await fetch(
+        `http://192.168.1.121:5000/api/entrepreneur/posts/${postId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (response.ok) {
+        // Refresh posts after deletion
+        loadUserAndPosts();
+      } else {
+        // Optionally show error
+        alert("You can only delete your own posts.");
+      }
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  };
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPostId, setMenuPostId] = useState(null);
   const [userName, setUserName] = useState("");
@@ -35,7 +59,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.1.101:5000/api/entrepreneur/posts",
+        "http://192.168.1.121:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -125,7 +149,8 @@ const HomeScreen = () => {
                         <TouchableOpacity
                           style={styles.menuItem}
                           onPress={() => {
-                            /* TODO: handle delete */ setMenuVisible(false);
+                            handleDeletePost(post._id);
+                            setMenuVisible(false);
                           }}
                         >
                           <Text style={styles.menuText}>Delete</Text>
@@ -420,7 +445,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 12,
     width: 150,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#6750A4",
