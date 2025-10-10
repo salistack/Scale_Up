@@ -66,7 +66,7 @@ const CreatePostScreen = () => {
         }
       }
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -304,7 +304,7 @@ const CreatePostScreen = () => {
               style={[styles.inputField, { height: 100 }]}
               placeholder="Write a detailed description about your post"
               multiline
-              maxLength={200}
+              maxLength={2500}
               value={longDescription}
               onChangeText={setLongDescription}
             />

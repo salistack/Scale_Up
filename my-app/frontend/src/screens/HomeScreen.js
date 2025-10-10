@@ -11,6 +11,8 @@ import {
   Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HomeScreen = () => {
@@ -18,8 +20,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}`,
-        `http://192.168.8.101/api/entrepreneur/posts/${postId}`,
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -60,7 +61,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -94,6 +95,33 @@ const HomeScreen = () => {
       loadUserAndPosts();
     }, [])
   );
+
+  // PDF download handler (Expo Go/mobile compatibility)
+  const handleDownloadPdf = async (postId) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const downloadUrl = `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}/download-pdf`;
+      const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
+
+      const result = await FileSystem.downloadAsync(downloadUrl, fileUri, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (result && result.uri) {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(result.uri);
+        } else {
+          alert("PDF downloaded: " + result.uri);
+        }
+      } else {
+        alert("Download failed: No file URI returned.");
+      }
+    } catch (err) {
+      alert("Error downloading PDF: " + err.message);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -225,7 +253,7 @@ const HomeScreen = () => {
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={() => {
-                        /* TODO: handle download */
+                        handleDownloadPdf(post._id);
                       }}
                     >
                       <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
