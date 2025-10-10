@@ -79,14 +79,17 @@ const HomeScreen = () => {
     } catch (err) {
       console.error("Failed to fetch posts", err);
     }
+    
+    // Fetch mentors
+    try {
+      const mentorResponse = await fetch("http://192.168.178.202:5000/api/mentors");
+      const mentorData = await mentorResponse.json();
+      setMentors(Array.isArray(mentorData) ? mentorData : []);
+    } catch (err) {
+      console.error("Failed to fetch mentors", err);
+      setMentors([]);
+    }
   };
-
-  useEffect(() => {
-    fetch("http://192.168.178.202:5000/api/mentors")
-      .then((res) => res.json())
-      .then((data) => setMentors(data))
-      .catch(() => setMentors([]));
-  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
