@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
-//import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -12,7 +11,7 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  Alert, // added
+  Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -55,196 +54,8 @@ const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
   const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
   const navigation = useNavigation();
-  const removeImage = (idx) => {
-    setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
-    setActiveIdx(null);
-  };
 
-  const handlePost = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      const formData = new FormData();
-      formData.append("businessTitle", businessTitle);
-      formData.append("tagline", tagline);
-      formData.append("industry", industry);
-      formData.append("shortDescription", shortDescription);
-      formData.append("longDescription", longDescription);
-      formData.append("fundAmount", fundAmount);
-      formData.append("otherNeeds", otherNeeds);
-      // Debug: log all selectedImages before upload
-      if (selectedImages.length > 0) {
-        for (const asset of selectedImages) {
-          console.log("Uploading asset:", asset);
-          if (asset.uri.startsWith("blob:")) {
-            // Web: convert blob URI to File/Blob
-            try {
-              const response = await fetch(asset.uri);
-              const blob = await response.blob();
-              formData.append("images", blob, asset.fileName || "photo.jpg");
-            } catch (err) {
-              console.log("Error converting blob URI to file:", err);
-            }
-          } else if (asset.file) {
-            // Web: use File object directly
-            formData.append(
-              "images",
-              asset.file,
-              asset.fileName || "photo.jpg"
-            );
-          } else {
-            // Native: use correct property names
-            formData.append("images", {
-              uri: asset.uri,
-              type: asset.mimeType || "image/jpeg",
-              name: asset.fileName || "photo.jpg",
-            });
-          }
-        }
-      }
-      const response = await fetch(
-        "http://192.168.1.100:5000/api/entrepreneur/posts",
-        {
-          method: "POST",
-          headers: {
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: formData,
-        }
-      );
-      const data = await response.json();
-      if (response.ok) {
-        alert("Post created successfully!");
-        // Optionally clear form fields here
-      } else {
-        alert(data.msg || "Failed to create post");
-      }
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // New: current user info for mentor attribution
-  const [userName, setUserName] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      const userData = await AsyncStorage.getItem("user");
-      if (userData) {
-        const user = JSON.parse(userData);
-        setUserName(user.name || "");
-        setUserEmail(user.email || "");
-      }
-    })();
-  }, []);
-
-  // ...existing entrepreneur state...
-
-  // Replace old mentor state with new fields
-  const [mentorTitle, setMentorTitle] = useState("");
-  const [mentorSector, setMentorSector] = useState(SECTORS[0]);
-  const [mentorYears, setMentorYears] = useState("3");
-  const [mentorBrief, setMentorBrief] = useState("");
-  const [mentorLocalImages, setMentorLocalImages] = useState([]);
-  const [mentorSubmitting, setMentorSubmitting] = useState(false);
-
-  // New: pick multiple mentor images
-  const pickMentorImages = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission required", "Please allow photo library access.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      selectionLimit: 6,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      const selected = (result.assets || []).map((a) => a.uri);
-      setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
-    }
-  };
-
-  // Replace old handleMentorSubmit with new flow
-  const handleMentorSubmit = async () => {
-    if (!mentorTitle.trim()) return Alert.alert("Validation", "Enter a title.");
-    if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
-    if (isNaN(parseInt(mentorYears)))
-      return Alert.alert("Validation", "Years must be a number.");
-    if (!userName)
-      return Alert.alert(
-        "Validation",
-        "User name is required. Please sign in again."
-      );
-
-    const token = await AsyncStorage.getItem("token");
-    setMentorSubmitting(true);
-
-    try {
-      // Skip image uploads for now
-      console.log("Skipping image uploads due to Cloudinary preset issues");
-
-      // Create mentor data without images
-      const mentorData = {
-        name: userName,
-        email: userEmail,
-        expertise: mentorSector,
-        bio: mentorBrief.trim(),
-        photos: [], // Empty array instead of trying to upload
-        title: mentorTitle.trim(),
-        experienceYears: parseInt(mentorYears, 10),
-      };
-
-      console.log("Submitting mentor data:", mentorData);
-
-      const res = await fetch("http://192.168.1.100:5000/api/mentors", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(mentorData),
-      });
-
-      // Handle response
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Server error response:", errorText);
-
-        try {
-          const errorData = JSON.parse(errorText);
-          throw new Error(
-            errorData.msg || errorData.message || `Server error (${res.status})`
-          );
-        } catch (e) {
-          throw new Error(`Server error (${res.status}): ${errorText}`);
-        }
-      }
-
-      Alert.alert(
-        "Success",
-        "Mentor post created successfully! (Note: Image upload was skipped)"
-      );
-
-      // Reset form
-      setMentorTitle("");
-      setMentorSector(SECTORS[0]);
-      setMentorYears("3");
-      setMentorBrief("");
-      setMentorLocalImages([]);
-
-      // Navigate to home to see the post
-      navigation.navigate("HomeTabs");
-    } catch (err) {
-      console.error("Submission error:", err);
-      Alert.alert("Error", err.message || "Failed to create post.");
-    } finally {
-      setMentorSubmitting(false);
-    }
-  };
-
+  // Entrepreneur State
   const [businessTitle, setBusinessTitle] = useState("");
   const [tagline, setTagline] = useState("");
   const [industry, setIndustry] = useState("");
@@ -253,9 +64,23 @@ const CreatePostScreen = () => {
   const [fundAmount, setFundAmount] = useState("");
   const [otherNeeds, setOtherNeeds] = useState("");
   const [selectedImages, setSelectedImages] = useState([]);
-  const [mentorName, setMentorName] = useState("");
-  const [mentorExpertise, setMentorExpertise] = useState("");
-  const [mentorBio, setMentorBio] = useState("");
+
+  // Mentor State
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [mentorTitle, setMentorTitle] = useState("");
+  const [mentorSector, setMentorSector] = useState(SECTORS[0]);
+  const [mentorYears, setMentorYears] = useState("3");
+  const [mentorBrief, setMentorBrief] = useState("");
+  const [mentorLocalImages, setMentorLocalImages] = useState([]);
+  const [mentorSubmitting, setMentorSubmitting] = useState(false);
+
+  // Investor State
+  const [investmentAmount, setInvestmentAmount] = useState("");
+  const [fundingType, setFundingType] = useState("");
+  const [expectedROI, setExpectedROI] = useState("");
+  const [interestLevel, setInterestLevel] = useState("");
+  const [investorDescription, setInvestorDescription] = useState("");
 
   const industries = [
     "Technology",
@@ -284,16 +109,30 @@ const CreatePostScreen = () => {
     "Sports & Recreation",
   ];
 
+  useEffect(() => {
+    (async () => {
+      const userData = await AsyncStorage.getItem("user");
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserName(user.name || "");
+        setUserEmail(user.email || "");
+      }
+    })();
+  }, []);
+
+  // Image Handling
+  const removeImage = (idx) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== idx));
+    setActiveIdx(null);
+  };
+
   const pickImage = async () => {
-    // Ask for permission
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       alert("Permission to access gallery is required!");
       return;
     }
 
-    // Open picker
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -303,8 +142,206 @@ const CreatePostScreen = () => {
     if (!result.canceled) {
       setSelectedImages((prev) => [
         ...prev,
-        ...result.assets, // store full asset objects
+        ...result.assets,
       ]);
+    }
+  };
+
+  const pickMentorImages = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission required", "Please allow photo library access.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 6,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const selected = (result.assets || []).map((a) => a.uri);
+      setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
+    }
+  };
+
+  // Entrepreneur Post Handler
+  const handlePost = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("businessTitle", businessTitle);
+      formData.append("tagline", tagline);
+      formData.append("industry", industry);
+      formData.append("shortDescription", shortDescription);
+      formData.append("longDescription", longDescription);
+      formData.append("fundAmount", fundAmount);
+      formData.append("otherNeeds", otherNeeds);
+      
+      if (selectedImages.length > 0) {
+        for (const asset of selectedImages) {
+          console.log("Uploading asset:", asset);
+          if (asset.uri.startsWith("blob:")) {
+            try {
+              const response = await fetch(asset.uri);
+              const blob = await response.blob();
+              formData.append("images", blob, asset.fileName || "photo.jpg");
+            } catch (err) {
+              console.log("Error converting blob URI to file:", err);
+            }
+          } else if (asset.file) {
+            formData.append(
+              "images",
+              asset.file,
+              asset.fileName || "photo.jpg"
+            );
+          } else {
+            formData.append("images", {
+              uri: asset.uri,
+              type: asset.mimeType || "image/jpeg",
+              name: asset.fileName || "photo.jpg",
+            });
+          }
+        }
+      }
+      
+      const response = await fetch(
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
+        {
+          method: "POST",
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: formData,
+        }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        alert("Post created successfully!");
+      } else {
+        alert(data.msg || "Failed to create post");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // Mentor Submit Handler
+  const handleMentorSubmit = async () => {
+    if (!mentorTitle.trim()) return Alert.alert("Validation", "Enter a title.");
+    if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
+    if (isNaN(parseInt(mentorYears)))
+      return Alert.alert("Validation", "Years must be a number.");
+    if (!userName)
+      return Alert.alert(
+        "Validation",
+        "User name is required. Please sign in again."
+      );
+
+    const token = await AsyncStorage.getItem("token");
+    setMentorSubmitting(true);
+
+    try {
+      const mentorData = {
+        name: userName,
+        email: userEmail,
+        expertise: mentorSector,
+        bio: mentorBrief.trim(),
+        photos: [],
+        title: mentorTitle.trim(),
+        experienceYears: parseInt(mentorYears, 10),
+      };
+
+      console.log("Submitting mentor data:", mentorData);
+
+      const res = await fetch("http://192.168.1.100:5000/api/mentors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(mentorData),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server error response:", errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(
+            errorData.msg || errorData.message || `Server error (${res.status})`
+          );
+        } catch (e) {
+          throw new Error(`Server error (${res.status}): ${errorText}`);
+        }
+      }
+
+      Alert.alert(
+        "Success",
+        "Mentor post created successfully! (Note: Image upload was skipped)"
+      );
+
+      // Reset form
+      setMentorTitle("");
+      setMentorSector(SECTORS[0]);
+      setMentorYears("3");
+      setMentorBrief("");
+      setMentorLocalImages([]);
+
+      navigation.navigate("HomeTabs");
+    } catch (err) {
+      console.error("Submission error:", err);
+      Alert.alert("Error", err.message || "Failed to create post.");
+    } finally {
+      setMentorSubmitting(false);
+    }
+  };
+
+  // Investor Submit Handler
+  const handleInvestorSubmit = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Please log in first");
+        return;
+      }
+
+      if (!investmentAmount || !fundingType || !expectedROI || !interestLevel) {
+        Alert.alert("Error", "Please fill all required fields");
+        return;
+      }
+
+      const postData = {
+        investmentAmount: Number(investmentAmount),
+        fundingType,
+        expectedROI: Number(expectedROI),
+        interestLevel: Number(interestLevel),
+        description: investorDescription,
+      };
+
+      const response = await fetch("http://192.168.8.101:5000/api/proposals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(postData),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert("Success", "Proposal created successfully!");
+        // Reset form
+        setInvestmentAmount("");
+        setFundingType("");
+        setExpectedROI("");
+        setInterestLevel("");
+        setInvestorDescription("");
+      } else {
+        Alert.alert("Error", data.msg || "Failed to create proposal");
+      }
+    } catch (err) {
+      Alert.alert("Error", err.message);
     }
   };
 
@@ -352,11 +389,7 @@ const CreatePostScreen = () => {
             styles.formSwitchBtn,
             activeForm === "investor" && styles.formSwitchBtnActive,
           ]}
-          onPress={() => {
-            const parentNav = navigation.getParent && navigation.getParent();
-            if (parentNav) parentNav.navigate("InvestorForm");
-            else navigation.navigate("InvestorForm");
-          }}
+          onPress={() => setActiveForm("investor")}
         >
           <Text
             style={[
@@ -517,9 +550,9 @@ const CreatePostScreen = () => {
             </TouchableOpacity>
           </>
         )}
+
         {activeForm === "mentor" && (
           <>
-            {/* New mentor post form (same UX as Home) */}
             <Text style={styles.label}>Heading / Title</Text>
             <TextInput
               style={styles.inputField}
@@ -626,22 +659,89 @@ const CreatePostScreen = () => {
                 setMentorLocalImages([]);
               }}
             >
-              <Text
-                className="discardButtonText"
-                style={styles.discardButtonText}
-              >
-                Discard
-              </Text>
+              <Text style={styles.discardButtonText}>Discard</Text>
             </TouchableOpacity>
           </>
         )}
+
         {activeForm === "investor" && (
-          <View style={styles.placeholderForm}>
-            <Text style={styles.placeholderText}>
-              Investor Form (to be implemented)
-            </Text>
-          </View>
+          <>
+            <Text style={styles.label}>Investment Amount</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter amount"
+              value={investmentAmount}
+              onChangeText={setInvestmentAmount}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>Funding Type</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={fundingType}
+                onValueChange={setFundingType}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Type" value="" />
+                <Picker.Item label="Equity" value="Equity" />
+                <Picker.Item label="Loan" value="Loan" />
+                <Picker.Item label="Grant" value="Grant" />
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Expected ROI (%)</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter ROI"
+              value={expectedROI}
+              onChangeText={setExpectedROI}
+              keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>Interest Level</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={interestLevel}
+                onValueChange={setInterestLevel}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Level" value="" />
+                <Picker.Item label="1 - Low" value="1" />
+                <Picker.Item label="2" value="2" />
+                <Picker.Item label="3 - Medium" value="3" />
+                <Picker.Item label="4" value="4" />
+                <Picker.Item label="5 - High" value="5" />
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 100 }]}
+              placeholder="Add a description"
+              value={investorDescription}
+              onChangeText={setInvestorDescription}
+              multiline
+            />
+
+            <TouchableOpacity style={styles.postButton} onPress={handleInvestorSubmit}>
+              <Text style={styles.postButtonText}>Submit Proposal</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setInvestmentAmount("");
+                setFundingType("");
+                setExpectedROI("");
+                setInterestLevel("");
+                setInvestorDescription("");
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
         )}
+
         {activeForm === "franchise" && (
           <View style={styles.placeholderForm}>
             <Text style={styles.placeholderText}>
@@ -706,7 +806,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
-    //backgroundColor: "#FFFFFF",
   },
   headerTitle: {
     fontSize: 24,
@@ -743,7 +842,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#6750A4",
-    //color: "#fff",
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
