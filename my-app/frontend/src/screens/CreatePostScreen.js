@@ -204,7 +204,7 @@ const CreatePostScreen = () => {
       }
 
       const response = await fetch(
-        "http://192.168.1.102:5000/api/entrepreneur/posts",
+        "http://192.168.8.101:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -252,7 +252,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://192.168.1.102:5000/api/mentors", {
+      const res = await fetch("http://192.168.8.101:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -317,7 +317,7 @@ const CreatePostScreen = () => {
         description: investorDescription,
       };
 
-      const response = await fetch("http://192.168.1.102:5000/api/proposals", {
+      const response = await fetch("http://192.168.8.101:5000/api/proposals", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
