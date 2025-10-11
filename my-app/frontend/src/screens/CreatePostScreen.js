@@ -12,6 +12,7 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -54,6 +55,127 @@ const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
   const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
   const navigation = useNavigation();
+  
+  // Franchise form state
+  const [franchiseName, setFranchiseName] = useState("");
+  const [franchiseDescription, setFranchiseDescription] = useState("");
+  const [franchiseLocation, setFranchiseLocation] = useState("");
+  const [franchiseCategory, setFranchiseCategory] = useState("Food & Beverage");
+  const [franchiseContact, setFranchiseContact] = useState("");
+  const [franchiseImage, setFranchiseImage] = useState(null);
+  const [franchiseSubmitting, setFranchiseSubmitting] = useState(false);
+  
+  // Franchise image picker function
+  const pickFranchiseImage = async () => {
+    // Ask for permission
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permission to access gallery is required!");
+      return;
+    }
+
+    // Open picker
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setFranchiseImage(result.assets[0].uri);
+    }
+  };
+  
+  // Franchise form submission handler
+  const handleSubmitFranchise = async () => {
+    // Validate form fields
+    if (!franchiseName.trim()) {
+      Alert.alert("Validation Error", "Please enter a franchise name");
+      return;
+    }
+    
+    if (!franchiseDescription.trim()) {
+      Alert.alert("Validation Error", "Please enter a franchise description");
+      return;
+    }
+    
+    if (!franchiseLocation.trim()) {
+      Alert.alert("Validation Error", "Please enter a franchise location");
+      return;
+    }
+    
+    // Start submission
+    setFranchiseSubmitting(true);
+    
+    try {
+      // Get auth token
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Authentication Error", "You must be logged in to post a franchise");
+        setFranchiseSubmitting(false);
+        return;
+      }
+      
+      // Create form data object
+      const formData = new FormData();
+      formData.append("name", franchiseName.trim());
+      formData.append("description", franchiseDescription.trim());
+      formData.append("location", franchiseLocation.trim());
+      formData.append("category", franchiseCategory);
+      formData.append("contact", franchiseContact.trim());
+      
+      // Add image if selected
+      if (franchiseImage) {
+        // Get file extension
+        const fileExtension = franchiseImage.split('.').pop();
+        formData.append("image", {
+          uri: franchiseImage,
+          type: `image/${fileExtension}`,
+          name: `franchise_${Date.now()}.${fileExtension}`
+        });
+      }
+      
+      // Send request to backend
+      const response = await fetch("http://172.27.96.1:5000/api/franchise/create", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Content-Type is automatically set by FormData
+        },
+        body: formData
+      });
+      
+      // Handle response
+      const data = await response.json();
+      
+      if (response.ok) {
+        Alert.alert(
+          "Success", 
+          "Your franchise was posted successfully!",
+          [{ text: "OK", onPress: () => {
+            // Reset form fields
+            setFranchiseName("");
+            setFranchiseDescription("");
+            setFranchiseLocation("");
+            setFranchiseCategory("Food & Beverage");
+            setFranchiseContact("");
+            setFranchiseImage(null);
+            
+            // Navigate to home to see posted franchises
+            navigation.navigate("HomeTabs");
+          }}]
+        );
+      } else {
+        Alert.alert("Error", data.message || "Failed to post franchise");
+      }
+    } catch (error) {
+      console.error("Franchise submission error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setFranchiseSubmitting(false);
+    }
+  };
+  
 
   // Entrepreneur State
   const [businessTitle, setBusinessTitle] = useState("");
@@ -204,7 +326,7 @@ const CreatePostScreen = () => {
       }
 
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://172.27.96.1:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -252,7 +374,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://192.168.8.101:5000/api/mentors", {
+      const res = await fetch("http://172.27.96.1:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -744,11 +866,105 @@ const CreatePostScreen = () => {
         )}
 
         {activeForm === "franchise" && (
-          <View style={styles.placeholderForm}>
-            <Text style={styles.placeholderText}>
-              Franchise Owner Form (to be implemented)
-            </Text>
-          </View>
+          <>
+            <Text style={styles.label}>Franchise Name</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter franchise name"
+              value={franchiseName}
+              onChangeText={setFranchiseName}
+            />
+            
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 100, textAlignVertical: 'top' }]}
+              placeholder="Describe your franchise opportunity"
+              multiline
+              value={franchiseDescription}
+              onChangeText={setFranchiseDescription}
+            />
+            
+            <Text style={styles.label}>Location</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="City, Country"
+              value={franchiseLocation}
+              onChangeText={setFranchiseLocation}
+            />
+            
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={franchiseCategory}
+                onValueChange={setFranchiseCategory}
+                style={styles.picker}
+              >
+                <Picker.Item label="Food & Beverage" value="Food & Beverage" />
+                <Picker.Item label="Retail" value="Retail" />
+                <Picker.Item label="Education" value="Education" />
+                <Picker.Item label="Healthcare" value="Healthcare" />
+                <Picker.Item label="Technology" value="Technology" />
+                <Picker.Item label="Fitness" value="Fitness" />
+                <Picker.Item label="Entertainment" value="Entertainment" />
+                <Picker.Item label="Services" value="Services" />
+                <Picker.Item label="Other" value="Other" />
+              </Picker>
+            </View>
+            
+            <Text style={styles.label}>Contact Information</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Phone, Email, or Website"
+              value={franchiseContact}
+              onChangeText={setFranchiseContact}
+            />
+            
+            <Text style={styles.label}>Franchise Image (Optional)</Text>
+            <TouchableOpacity 
+              onPress={() => pickFranchiseImage()} 
+              style={styles.uploadButton}
+            >
+              <Text style={styles.uploadButtonText}>Upload Image</Text>
+            </TouchableOpacity>
+            
+            {franchiseImage && (
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: franchiseImage }} style={styles.uploadedImage} />
+                <TouchableOpacity
+                  style={styles.removeImageBtn}
+                  onPress={() => setFranchiseImage(null)}
+                >
+                  <Text style={styles.removeImageText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.postButton, franchiseSubmitting && { opacity: 0.7 }]} 
+              onPress={handleSubmitFranchise}
+              disabled={franchiseSubmitting}
+            >
+              {franchiseSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.postButtonText}>Post Franchise</Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setFranchiseName("");
+                setFranchiseDescription("");
+                setFranchiseLocation("");
+                setFranchiseCategory("Food & Beverage");
+                setFranchiseContact("");
+                setFranchiseImage(null);
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -759,6 +975,7 @@ const styles = StyleSheet.create({
   imageWrapper: {
     position: "relative",
     marginRight: 10,
+    marginTop: 10,
     width: 100,
     height: 100,
     justifyContent: "center",

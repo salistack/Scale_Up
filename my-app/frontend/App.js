@@ -10,6 +10,7 @@ import InvestorForm from "./src/screens/InvestorForm";
 import InvestorFeed from "./src/screens/InvestorFeed";
 import EditProposal from "./src/screens/EditProposal";
 import CreatePostScreen from "./src/screens/CreatePostScreen";
+import FranchiseFormScreen from "./src/screens/FranchiseFormScreen";
 
 // Import Bottom Tabs
 import BottomTabs from "./src/navigation/BottomTabs";
@@ -28,7 +29,7 @@ export default function App() {
             options={{ headerShown: false }}
           />
 
-          {/* Home replaced by Bottom Tabs */}
+          {/* Home replaced by Bottom Tabs - keep this first to ensure it's the main view */}
           <Stack.Screen
             name="HomeTabs"
             component={BottomTabs}
@@ -54,6 +55,11 @@ export default function App() {
             name="CreatePostScreen"
             component={CreatePostScreen}
             options={{ title: "Create Post" }}
+          />
+          <Stack.Screen
+            name="FranchiseForm"
+            component={FranchiseFormScreen}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>
