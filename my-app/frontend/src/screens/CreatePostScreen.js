@@ -173,15 +173,19 @@ const CreatePostScreen = () => {
     if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
     if (isNaN(parseInt(mentorYears)))
       return Alert.alert("Validation", "Years must be a number.");
-    if (!userName) return Alert.alert("Validation", "User name is required. Please sign in again.");
+    if (!userName)
+      return Alert.alert(
+        "Validation",
+        "User name is required. Please sign in again."
+      );
 
     const token = await AsyncStorage.getItem("token");
     setMentorSubmitting(true);
-    
+
     try {
       // Skip image uploads for now
       console.log("Skipping image uploads due to Cloudinary preset issues");
-      
+
       // Create mentor data without images
       const mentorData = {
         name: userName,
@@ -190,12 +194,12 @@ const CreatePostScreen = () => {
         bio: mentorBrief.trim(),
         photos: [], // Empty array instead of trying to upload
         title: mentorTitle.trim(),
-        experienceYears: parseInt(mentorYears, 10)
+        experienceYears: parseInt(mentorYears, 10),
       };
-      
+
       console.log("Submitting mentor data:", mentorData);
-      
-      const res = await fetch("http://192.168.178.202:5000/api/mentors", {
+
+      const res = await fetch("http://192.168.1.100:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -203,32 +207,34 @@ const CreatePostScreen = () => {
         },
         body: JSON.stringify(mentorData),
       });
-      
+
       // Handle response
       if (!res.ok) {
         const errorText = await res.text();
         console.error("Server error response:", errorText);
-        
+
         try {
           const errorData = JSON.parse(errorText);
-          throw new Error(errorData.msg || errorData.message || `Server error (${res.status})`);
+          throw new Error(
+            errorData.msg || errorData.message || `Server error (${res.status})`
+          );
         } catch (e) {
           throw new Error(`Server error (${res.status}): ${errorText}`);
         }
       }
-      
+
       Alert.alert(
-        "Success", 
+        "Success",
         "Mentor post created successfully! (Note: Image upload was skipped)"
       );
-      
+
       // Reset form
       setMentorTitle("");
       setMentorSector(SECTORS[0]);
       setMentorYears("3");
       setMentorBrief("");
       setMentorLocalImages([]);
-      
+
       // Navigate to home to see the post
       navigation.navigate("HomeTabs");
     } catch (err) {
@@ -528,10 +534,7 @@ const CreatePostScreen = () => {
                 <TouchableOpacity
                   key={s}
                   onPress={() => setMentorSector(s)}
-                  style={[
-                    styles.chip,
-                    mentorSector === s && styles.chipActive,
-                  ]}
+                  style={[styles.chip, mentorSector === s && styles.chipActive]}
                 >
                   <Text
                     style={[
@@ -556,20 +559,27 @@ const CreatePostScreen = () => {
 
             <Text style={styles.label}>Brief of Experience</Text>
             <TextInput
-              style={[styles.inputField, { height: 110, textAlignVertical: "top" }]}
+              style={[
+                styles.inputField,
+                { height: 110, textAlignVertical: "top" },
+              ]}
               placeholder="Describe your experience..."
               multiline
               value={mentorBrief}
               onChangeText={setMentorBrief}
             />
 
-            <Text style={styles.label}>Photos (Optional - currently disabled)</Text>
+            <Text style={styles.label}>
+              Photos (Optional - currently disabled)
+            </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {mentorLocalImages.map((u, i) => (
                 <TouchableOpacity
                   key={u + i}
                   onLongPress={() =>
-                    setMentorLocalImages((prev) => prev.filter((_, idx) => idx !== i))
+                    setMentorLocalImages((prev) =>
+                      prev.filter((_, idx) => idx !== i)
+                    )
                   }
                   style={{ marginRight: 8, marginBottom: 8 }}
                 >
@@ -577,11 +587,20 @@ const CreatePostScreen = () => {
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
-                onPress={() => Alert.alert(
-                  "Image Upload Disabled",
-                  "Image uploads have been temporarily disabled due to Cloudinary configuration issues. You can still submit the form without images."
-                )}
-                style={[styles.chip, { borderStyle: "dashed", borderWidth: 1, borderColor: "#bbb" }]}
+                onPress={() =>
+                  Alert.alert(
+                    "Image Upload Disabled",
+                    "Image uploads have been temporarily disabled due to Cloudinary configuration issues. You can still submit the form without images."
+                  )
+                }
+                style={[
+                  styles.chip,
+                  {
+                    borderStyle: "dashed",
+                    borderWidth: 1,
+                    borderColor: "#bbb",
+                  },
+                ]}
               >
                 <Text style={{ color: "#999" }}>Images Disabled</Text>
               </TouchableOpacity>
@@ -607,7 +626,10 @@ const CreatePostScreen = () => {
                 setMentorLocalImages([]);
               }}
             >
-              <Text className="discardButtonText" style={styles.discardButtonText}>
+              <Text
+                className="discardButtonText"
+                style={styles.discardButtonText}
+              >
                 Discard
               </Text>
             </TouchableOpacity>
@@ -804,10 +826,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  chipsRow: { 
-    flexDirection: "row", 
-    flexWrap: "wrap", 
-    gap: 8 
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   chip: {
     paddingHorizontal: 12,

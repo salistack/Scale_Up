@@ -41,9 +41,9 @@ const uploadToCloudinary = async (localUri) => {
   if (!CLOUDINARY_CLOUD_NAME) {
     throw new Error("Cloudinary not configured.");
   }
-  
+
   console.log("Starting upload for:", localUri);
-  
+
   const fileType = (localUri.split(".").pop() || "jpg").toLowerCase();
   const formData = new FormData();
   formData.append("file", {
@@ -51,25 +51,25 @@ const uploadToCloudinary = async (localUri) => {
     name: `photo_${Date.now()}.${fileType}`,
     type: `image/${fileType}`,
   });
-  
+
   // Use API key for upload
   const timestamp = Math.floor(Date.now() / 1000);
   formData.append("timestamp", timestamp);
   formData.append("api_key", CLOUDINARY_API_KEY);
   // Using raw public upload for simplicity
-  
+
   try {
     const res = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
       { method: "POST", body: formData }
     );
-    
+
     if (!res.ok) {
       const errorText = await res.text();
       console.error("Cloudinary error:", errorText);
       throw new Error(`Upload failed (${res.status}): ${errorText}`);
     }
-    
+
     const json = await res.json();
     console.log("Upload successful:", json.secure_url);
     return json.secure_url;
@@ -84,7 +84,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.178.202:5000/api/entrepreneur/posts/${postId}`,
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -115,7 +115,7 @@ const HomeScreen = () => {
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [qrVisible, setQrVisible] = useState(false);
   const [qrPostId, setQrPostId] = useState(null);
-  
+
   const navigation = useNavigation();
 
   // Add missing functions for mentor details
@@ -131,8 +131,8 @@ const HomeScreen = () => {
 
   const emailMentor = (email, subject) => {
     const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
-    Linking.openURL(mailtoUrl).catch(err => 
-      Alert.alert('Error', 'Could not open email client')
+    Linking.openURL(mailtoUrl).catch((err) =>
+      Alert.alert("Error", "Could not open email client")
     );
   };
 
@@ -146,9 +146,9 @@ const HomeScreen = () => {
     try {
       const token = await AsyncStorage.getItem("token");
       const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
-      
+
       const downloadResumable = FileSystem.createDownloadResumable(
-        `http://192.168.178.202:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}/download-pdf`,
         fileUri,
         {
           headers: {
@@ -156,13 +156,16 @@ const HomeScreen = () => {
           },
         }
       );
-      
+
       const { uri } = await downloadResumable.downloadAsync();
-      
+
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri);
       } else {
-        Alert.alert("Sharing not available", "Sharing is not available on this device");
+        Alert.alert(
+          "Sharing not available",
+          "Sharing is not available on this device"
+        );
       }
     } catch (error) {
       console.error("Error downloading PDF:", error);
@@ -185,7 +188,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.178.202:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -208,7 +211,7 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://192.168.178.202:5000/api/mentors")
+    fetch("http://192.168.1.100:5000/api/mentors")
       .then((res) => res.json())
       .then((data) => setMentors(data))
       .catch(() => setMentors([]));
@@ -237,26 +240,38 @@ const HomeScreen = () => {
 
           {mentors.length === 0 ? (
             <View style={styles.emptyStateContainer}>
-              <Text style={styles.emptyStateText}>No mentors available at the moment</Text>
+              <Text style={styles.emptyStateText}>
+                No mentors available at the moment
+              </Text>
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mentorCarousel}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mentorCarousel}
+            >
               {mentors.map((mentor, idx) => {
-                const photo = Array.isArray(mentor.photos) && mentor.photos.length ? mentor.photos[0] : null;
+                const photo =
+                  Array.isArray(mentor.photos) && mentor.photos.length
+                    ? mentor.photos[0]
+                    : null;
                 const title = mentor.title || mentor.name || "Mentor";
                 const sector = mentor.sector || mentor.expertise || "General";
                 const years = mentor.experienceYears || mentor.years || null;
                 const brief = mentor.brief || mentor.bio || "";
                 return (
-                  <TouchableOpacity 
-                    key={mentor._id || idx} 
-                    onPress={() => openMentorDetail(mentor)} 
+                  <TouchableOpacity
+                    key={mentor._id || idx}
+                    onPress={() => openMentorDetail(mentor)}
                     style={styles.mentorCard}
                     activeOpacity={0.9}
                   >
                     <View style={styles.mentorImageContainer}>
                       {photo ? (
-                        <Image source={{ uri: photo }} style={styles.mentorImage} />
+                        <Image
+                          source={{ uri: photo }}
+                          style={styles.mentorImage}
+                        />
                       ) : (
                         <View style={styles.mentorImagePlaceholder}>
                           <Text style={styles.mentorImagePlaceholderText}>
@@ -266,14 +281,18 @@ const HomeScreen = () => {
                       )}
                     </View>
                     <View style={styles.mentorCardContent}>
-                      <Text numberOfLines={1} style={styles.mentorCardTitle}>{title}</Text>
+                      <Text numberOfLines={1} style={styles.mentorCardTitle}>
+                        {title}
+                      </Text>
                       <View style={styles.mentorCardBadge}>
                         <Text style={styles.mentorCardBadgeText}>
                           {sector}
                           {years ? ` • ${years} yrs` : ""}
                         </Text>
                       </View>
-                      <Text numberOfLines={2} style={styles.mentorCardDesc}>{brief}</Text>
+                      <Text numberOfLines={2} style={styles.mentorCardDesc}>
+                        {brief}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -290,12 +309,28 @@ const HomeScreen = () => {
             </View>
           ) : (
             posts.map((post) => (
-              <View key={post._id} style={styles.feedCard}>
-                {/* Show poster's name and menu button in a row */}
-                <View style={styles.feedCardTopRow}>
-                  <Text style={styles.feedAuthorName}>
-                    {post.user && post.user.name ? post.user.name : "Unknown"}
-                  </Text>
+              <View key={post._id} style={styles.feedCardProfessional}>
+                <View style={styles.feedCardTopRowProfessional}>
+                  <View style={styles.profilePicContainer}>
+                    <Image
+                      source={{
+                        uri:
+                          post.user?.profilePic ||
+                          "https://ui-avatars.com/api/?name=" +
+                            (post.user?.name || "User") +
+                            "&background=6750A4&color=fff&size=128",
+                      }}
+                      style={styles.profilePic}
+                    />
+                  </View>
+                  <View style={styles.feedCardInfo}>
+                    <Text style={styles.feedAuthorNameProfessional}>
+                      {post.user?.name || "Unknown"}
+                    </Text>
+                    <Text style={styles.feedAuthorEmail}>
+                      {post.user?.email || ""}
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     style={styles.menuButton}
                     onPress={() => {
@@ -306,72 +341,13 @@ const HomeScreen = () => {
                     <Text style={styles.menuDots}>⋯</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.feedHeader}>
-                  <Text style={styles.feedTitle}>{post.businessTitle}</Text>
+                <View style={styles.feedHeaderProfessional}>
+                  <Text style={styles.feedTitleProfessional}>
+                    {post.businessTitle}
+                  </Text>
+                  <Text style={styles.feedTagline}>{post.tagline}</Text>
                 </View>
-                {/* Menu Modal */}
-                {menuVisible && menuPostId === post._id && (
-                  <Modal
-                    transparent
-                    animationType="fade"
-                    visible={menuVisible}
-                    onRequestClose={() => setMenuVisible(false)}
-                  >
-                    <TouchableOpacity
-                      style={styles.menuOverlay}
-                      activeOpacity={1}
-                      onPress={() => setMenuVisible(false)}
-                    >
-                      <View style={styles.menuContainer}>
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => {
-                            /* TODO: handle update */ setMenuVisible(false);
-                          }}
-                        >
-                          <Text style={styles.menuText}>Update</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => {
-                            handleDeletePost(post._id);
-                            setMenuVisible(false);
-                          }}
-                        >
-                          <Text style={styles.menuText}>Delete</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
-                  </Modal>
-                )}
-                {expandedPostId === post._id && post.longDescription ? (
-                  <Text style={styles.feedDescription}>
-                    {post.longDescription}
-                    <Text
-                      style={styles.moreText}
-                      onPress={() => setExpandedPostId(null)}
-                    >
-                      {" "}
-                      less..
-                    </Text>
-                  </Text>
-                ) : (
-                  <Text style={styles.feedDescription}>
-                    {post.shortDescription}
-                    {post.longDescription && (
-                      <Text
-                        style={styles.moreText}
-                        onPress={() => setExpandedPostId(post._id)}
-                      >
-                        {" "}
-                        more..
-                      </Text>
-                    )}
-                  </Text>
-                )}
-                <Text style={styles.feedAuthor}>{post.industry}</Text>
-                <Text style={styles.feedAuthor}>{post.tagline}</Text>
-                {/* Display all Cloudinary images below industry and tagline */}
+                <Text style={styles.feedIndustry}>{post.industry}</Text>
                 {post.images && post.images.length > 0 && (
                   <ScrollView
                     horizontal
@@ -382,41 +358,58 @@ const HomeScreen = () => {
                       <Image
                         key={imgUrl + idx}
                         source={{ uri: imgUrl }}
-                        style={{
-                          width: 200,
-                          height: 200,
-                          borderRadius: 12,
-                          marginRight: 10,
-                        }}
+                        style={styles.feedImageProfessional}
                         resizeMode="cover"
                       />
                     ))}
                   </ScrollView>
                 )}
-                {/* Add more fields/images as needed */}
-                <View style={styles.feedcardBottom}>
-                  <View style={styles.feedcardLike}>
-                    <Text style={styles.feedLike}>like</Text>
+                <View style={styles.feedDescriptionContainer}>
+                  {expandedPostId === post._id && post.longDescription ? (
+                    <Text style={styles.feedDescriptionProfessional}>
+                      {post.longDescription}
+                      <Text
+                        style={styles.moreText}
+                        onPress={() => setExpandedPostId(null)}
+                      >
+                        {" "}
+                        less..
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text style={styles.feedDescriptionProfessional}>
+                      {post.shortDescription}
+                      {post.longDescription && (
+                        <Text
+                          style={styles.moreText}
+                          onPress={() => setExpandedPostId(post._id)}
+                        >
+                          {" "}
+                          more..
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.feedcardBottomProfessional}>
+                  <View style={styles.feedcardLikeProfessional}>
+                    <Text style={styles.feedLikeProfessional}>👍 Like</Text>
                   </View>
-                  <View style={styles.feedcardActions}>
+                  <View style={styles.feedcardActionsProfessional}>
                     <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        handleDownloadPdf(post._id);
-                      }}
+                      style={styles.actionBtnProfessional}
+                      onPress={() => handleDownloadPdf(post._id)}
                     >
-                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
-                        download
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        Download
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        handleShowQr(post._id);
-                      }}
+                      style={styles.actionBtnProfessional}
+                      onPress={() => handleShowQr(post._id)}
                     >
-                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
-                        qr
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        QR
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -427,8 +420,17 @@ const HomeScreen = () => {
         </View>
 
         {/* Mentor detail modal with contact */}
-        <Modal transparent animationType="slide" visible={mentorDetailVisible} onRequestClose={closeMentorDetail}>
-          <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={closeMentorDetail}>
+        <Modal
+          transparent
+          animationType="slide"
+          visible={mentorDetailVisible}
+          onRequestClose={closeMentorDetail}
+        >
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            activeOpacity={1}
+            onPress={closeMentorDetail}
+          >
             <View style={styles.detailModal}>
               {selectedMentor && (
                 <>
@@ -436,35 +438,56 @@ const HomeScreen = () => {
                     <Text style={styles.detailModalTitle}>
                       {selectedMentor.title || selectedMentor.name || "Mentor"}
                     </Text>
-                    <TouchableOpacity onPress={closeMentorDetail} style={styles.closeButton}>
+                    <TouchableOpacity
+                      onPress={closeMentorDetail}
+                      style={styles.closeButton}
+                    >
                       <Text style={styles.closeButtonText}>×</Text>
                     </TouchableOpacity>
                   </View>
-                  
+
                   <View style={styles.detailModalExpertise}>
                     <Text style={styles.detailModalExpertiseText}>
-                      {(selectedMentor.sector || selectedMentor.expertise || "General")}
-                      {selectedMentor.experienceYears ? 
-                        <Text style={styles.detailModalYears}> • {selectedMentor.experienceYears} years experience</Text> : 
-                        ""}
+                      {selectedMentor.sector ||
+                        selectedMentor.expertise ||
+                        "General"}
+                      {selectedMentor.experienceYears ? (
+                        <Text style={styles.detailModalYears}>
+                          {" "}
+                          • {selectedMentor.experienceYears} years experience
+                        </Text>
+                      ) : (
+                        ""
+                      )}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.detailModalBody}>
                     <Text style={styles.detailModalBio}>
                       {selectedMentor.brief || selectedMentor.bio || ""}
                     </Text>
                   </View>
-                  
-                  {!!(selectedMentor.email) && (
+
+                  {!!selectedMentor.email && (
                     <View style={styles.detailModalContact}>
-                      <Text style={styles.detailModalContactLabel}>Contact</Text>
-                      <Text style={styles.detailModalEmail}>{selectedMentor.email}</Text>
-                      <TouchableOpacity 
-                        onPress={() => emailMentor(selectedMentor.email, selectedMentor.title || "Mentor Inquiry")} 
+                      <Text style={styles.detailModalContactLabel}>
+                        Contact
+                      </Text>
+                      <Text style={styles.detailModalEmail}>
+                        {selectedMentor.email}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          emailMentor(
+                            selectedMentor.email,
+                            selectedMentor.title || "Mentor Inquiry"
+                          )
+                        }
                         style={styles.contactButton}
                       >
-                        <Text style={styles.contactButtonText}>Email Mentor</Text>
+                        <Text style={styles.contactButtonText}>
+                          Email Mentor
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -497,7 +520,7 @@ const HomeScreen = () => {
               </Text>
               {qrPostId && (
                 <QRCode
-                  value={`http://192.168.178.202:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                   size={200}
                 />
               )}
@@ -511,6 +534,41 @@ const HomeScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+        </Modal>
+      )}
+
+      {posts.length > 0 && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={menuVisible}
+          onRequestClose={() => setMenuVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          >
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  /* TODO: handle update */ setMenuVisible(false);
+                }}
+              >
+                <Text style={styles.menuText}>Update</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  handleDeletePost(menuPostId);
+                  setMenuVisible(false);
+                }}
+              >
+                <Text style={styles.menuText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </Modal>
       )}
     </SafeAreaView>
@@ -607,7 +665,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  
+
   mentorSection: {
     paddingHorizontal: 20,
     paddingBottom: 30,
@@ -641,9 +699,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   mentorImage: {
-    width: "100%", 
-    height: "100%", 
-    resizeMode: "cover"
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   mentorImagePlaceholder: {
     width: "100%",
@@ -655,7 +713,7 @@ const styles = StyleSheet.create({
   mentorImagePlaceholderText: {
     fontSize: 50,
     fontWeight: "bold",
-    color: "#999"
+    color: "#999",
   },
   mentorCardContent: {
     padding: 16,
@@ -684,7 +742,7 @@ const styles = StyleSheet.create({
     color: "#555",
     lineHeight: 20,
   },
-  
+
   emptyStateContainer: {
     paddingVertical: 30,
     alignItems: "center",
@@ -694,25 +752,121 @@ const styles = StyleSheet.create({
     color: "#888",
     fontStyle: "italic",
   },
-  
+
   feedSection: {
     paddingHorizontal: 20,
     paddingBottom: 80,
   },
-  feedCard: {
-    backgroundColor: "#F8F9FA",
+  feedCardProfessional: {
+    backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 25,
+    padding: 20,
+    marginBottom: 28,
     shadowColor: "#6750A4",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
     borderWidth: 1,
     borderColor: "rgba(158, 31, 249, 0.15)",
   },
-  
+  feedCardTopRowProfessional: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  profilePicContainer: {
+    marginRight: 14,
+  },
+  profilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#eee",
+  },
+  feedCardInfo: {
+    flex: 1,
+  },
+  feedAuthorNameProfessional: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#6750A4",
+  },
+  feedAuthorEmail: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
+  },
+  feedHeaderProfessional: {
+    marginBottom: 8,
+  },
+  feedTitleProfessional: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#222",
+    marginBottom: 2,
+  },
+  feedTagline: {
+    fontSize: 13,
+    color: "#6750A4",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  feedIndustry: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  feedImageProfessional: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  feedDescriptionContainer: {
+    marginBottom: 10,
+  },
+  feedDescriptionProfessional: {
+    fontSize: 14,
+    color: "#444",
+    lineHeight: 20,
+  },
+  feedcardBottomProfessional: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingTop: 12,
+    marginTop: 8,
+  },
+  feedcardLikeProfessional: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  feedLikeProfessional: {
+    color: "#6750A4",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  feedcardActionsProfessional: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  actionBtnProfessional: {
+    backgroundColor: "#6750A4",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+    fontWeight: "bold",
+    fontSize: 14,
+    overflow: "hidden",
+  },
   // Modal styles
   menuOverlay: {
     flex: 1,
