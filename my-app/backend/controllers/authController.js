@@ -2,6 +2,8 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+
+
 // Signup controller
 exports.signup = async (req, res) => {
   try {
@@ -70,6 +72,56 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+// Add this to authController.js
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password'); // exclude password
+    if (!user) return res.status(404).json({ msg: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    console.error("Get profile error:", err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+
+
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;  // comes from your middleware
+    const { name, email, password } = req.body;
+
+    // Find user
+    let user = await User.findById(userId);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    // Update fields if provided
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    // If password is provided, hash it
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    await user.save();
+
+    res.json({
+      msg: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (err) {
+    console.error("Profile update error:", err);
     res.status(500).json({ msg: "Server error" });
   }
 };

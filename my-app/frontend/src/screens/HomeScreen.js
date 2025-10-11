@@ -1,3 +1,4 @@
+import QRCode from "react-native-qrcode-svg";
 import React, { useEffect, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -9,16 +10,81 @@ import {
   Image,
   TouchableOpacity,
   Modal,
+  TextInput,
+  Alert,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+// Add: image picker (Expo). Install if missing: npx expo install expo-image-picker
+import * as ImagePicker from "expo-image-picker";
+
+// Cloudinary config (set your own)
+const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
+const CLOUDINARY_API_KEY = "972712514358626";
+const CLOUDINARY_API_SECRET = "AhsSmC4D7qFlWQ6ba2l4CKF_9JE";
+
+const SECTORS = [
+  "Travel",
+  "Automotive",
+  "Technology",
+  "Education",
+  "Health",
+  "Finance",
+  "Retail",
+  "Other",
+];
+
+const uploadToCloudinary = async (localUri) => {
+  if (!CLOUDINARY_CLOUD_NAME) {
+    throw new Error("Cloudinary not configured.");
+  }
+
+  console.log("Starting upload for:", localUri);
+
+  const fileType = (localUri.split(".").pop() || "jpg").toLowerCase();
+  const formData = new FormData();
+  formData.append("file", {
+    uri: localUri,
+    name: `photo_${Date.now()}.${fileType}`,
+    type: `image/${fileType}`,
+  });
+
+  // Use API key for upload
+  const timestamp = Math.floor(Date.now() / 1000);
+  formData.append("timestamp", timestamp);
+  formData.append("api_key", CLOUDINARY_API_KEY);
+  // Using raw public upload for simplicity
+
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+      { method: "POST", body: formData }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Cloudinary error:", errorText);
+      throw new Error(`Upload failed (${res.status}): ${errorText}`);
+    }
+
+    const json = await res.json();
+    console.log("Upload successful:", json.secure_url);
+    return json.secure_url;
+  } catch (err) {
+    console.error("Upload exception:", err);
+    throw err;
+  }
+};
 
 const HomeScreen = () => {
   const handleDeletePost = async (postId) => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.1.121:5000/api/entrepreneur/posts/${postId}`,
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -31,7 +97,6 @@ const HomeScreen = () => {
         // Refresh posts after deletion
         loadUserAndPosts();
       } else {
-        // Optionally show error
         alert("You can only delete your own posts.");
       }
     } catch (err) {
@@ -41,9 +106,72 @@ const HomeScreen = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPostId, setMenuPostId] = useState(null);
   const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState(""); // add
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
+  const [mentors, setMentors] = useState([]);
+  // Add missing state variables
+  const [mentorDetailVisible, setMentorDetailVisible] = useState(false);
+  const [selectedMentor, setSelectedMentor] = useState(null);
+  const [qrVisible, setQrVisible] = useState(false);
+  const [qrPostId, setQrPostId] = useState(null);
+
   const navigation = useNavigation();
+
+  // Add missing functions for mentor details
+  const openMentorDetail = (mentor) => {
+    setSelectedMentor(mentor);
+    setMentorDetailVisible(true);
+  };
+
+  const closeMentorDetail = () => {
+    setMentorDetailVisible(false);
+    setSelectedMentor(null);
+  };
+
+  const emailMentor = (email, subject) => {
+    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+    Linking.openURL(mailtoUrl).catch((err) =>
+      Alert.alert("Error", "Could not open email client")
+    );
+  };
+
+  // Add missing functions for QR code
+  const handleShowQr = (postId) => {
+    setQrPostId(postId);
+    setQrVisible(true);
+  };
+
+  const handleDownloadPdf = async (postId) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
+
+      const downloadResumable = FileSystem.createDownloadResumable(
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        fileUri,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const { uri } = await downloadResumable.downloadAsync();
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert(
+          "Sharing not available",
+          "Sharing is not available on this device"
+        );
+      }
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      Alert.alert("Download Failed", "Could not download the PDF");
+    }
+  };
 
   const loadUserAndPosts = async () => {
     // Get user name
@@ -51,6 +179,7 @@ const HomeScreen = () => {
     if (userData) {
       const user = JSON.parse(userData);
       setUserName(user.name || "");
+      setUserEmail(user.email || ""); // add
     }
 
     // Get JWT token directly
@@ -59,7 +188,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.1.121:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -81,6 +210,13 @@ const HomeScreen = () => {
     }
   };
 
+  useEffect(() => {
+    fetch("http://192.168.1.100:5000/api/mentors")
+      .then((res) => res.json())
+      .then((data) => setMentors(data))
+      .catch(() => setMentors([]));
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       loadUserAndPosts();
@@ -99,18 +235,102 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
       <ScrollView style={{ flex: 1 }}>
+        <View style={styles.mentorSection}>
+          <Text style={styles.sectionTitle}>Mentor Experience</Text>
+
+          {mentors.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>
+                No mentors available at the moment
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mentorCarousel}
+            >
+              {mentors.map((mentor, idx) => {
+                const photo =
+                  Array.isArray(mentor.photos) && mentor.photos.length
+                    ? mentor.photos[0]
+                    : null;
+                const title = mentor.title || mentor.name || "Mentor";
+                const sector = mentor.sector || mentor.expertise || "General";
+                const years = mentor.experienceYears || mentor.years || null;
+                const brief = mentor.brief || mentor.bio || "";
+                return (
+                  <TouchableOpacity
+                    key={mentor._id || idx}
+                    onPress={() => openMentorDetail(mentor)}
+                    style={styles.mentorCard}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.mentorImageContainer}>
+                      {photo ? (
+                        <Image
+                          source={{ uri: photo }}
+                          style={styles.mentorImage}
+                        />
+                      ) : (
+                        <View style={styles.mentorImagePlaceholder}>
+                          <Text style={styles.mentorImagePlaceholderText}>
+                            {title.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.mentorCardContent}>
+                      <Text numberOfLines={1} style={styles.mentorCardTitle}>
+                        {title}
+                      </Text>
+                      <View style={styles.mentorCardBadge}>
+                        <Text style={styles.mentorCardBadgeText}>
+                          {sector}
+                          {years ? ` • ${years} yrs` : ""}
+                        </Text>
+                      </View>
+                      <Text numberOfLines={2} style={styles.mentorCardDesc}>
+                        {brief}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
         <View style={styles.feedSection}>
-          <Text style={styles.feedSectionTitle}>Entrepreneur Posts</Text>
+          <Text style={styles.sectionTitle}>Entrepreneur Posts</Text>
           {posts.length === 0 ? (
-            <Text>No posts yet.</Text>
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>No posts yet</Text>
+            </View>
           ) : (
             posts.map((post) => (
-              <View key={post._id} style={styles.feedCard}>
-                {/* Show poster's name and menu button in a row */}
-                <View style={styles.feedCardTopRow}>
-                  <Text style={styles.feedAuthorName}>
-                    {post.user && post.user.name ? post.user.name : "Unknown"}
-                  </Text>
+              <View key={post._id} style={styles.feedCardProfessional}>
+                <View style={styles.feedCardTopRowProfessional}>
+                  <View style={styles.profilePicContainer}>
+                    <Image
+                      source={{
+                        uri:
+                          post.user?.profilePic ||
+                          "https://ui-avatars.com/api/?name=" +
+                            (post.user?.name || "User") +
+                            "&background=6750A4&color=fff&size=128",
+                      }}
+                      style={styles.profilePic}
+                    />
+                  </View>
+                  <View style={styles.feedCardInfo}>
+                    <Text style={styles.feedAuthorNameProfessional}>
+                      {post.user?.name || "Unknown"}
+                    </Text>
+                    <Text style={styles.feedAuthorEmail}>
+                      {post.user?.email || ""}
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     style={styles.menuButton}
                     onPress={() => {
@@ -121,72 +341,13 @@ const HomeScreen = () => {
                     <Text style={styles.menuDots}>⋯</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.feedHeader}>
-                  <Text style={styles.feedTitle}>{post.businessTitle}</Text>
+                <View style={styles.feedHeaderProfessional}>
+                  <Text style={styles.feedTitleProfessional}>
+                    {post.businessTitle}
+                  </Text>
+                  <Text style={styles.feedTagline}>{post.tagline}</Text>
                 </View>
-                {/* Menu Modal */}
-                {menuVisible && menuPostId === post._id && (
-                  <Modal
-                    transparent
-                    animationType="fade"
-                    visible={menuVisible}
-                    onRequestClose={() => setMenuVisible(false)}
-                  >
-                    <TouchableOpacity
-                      style={styles.menuOverlay}
-                      activeOpacity={1}
-                      onPress={() => setMenuVisible(false)}
-                    >
-                      <View style={styles.menuContainer}>
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => {
-                            /* TODO: handle update */ setMenuVisible(false);
-                          }}
-                        >
-                          <Text style={styles.menuText}>Update</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => {
-                            handleDeletePost(post._id);
-                            setMenuVisible(false);
-                          }}
-                        >
-                          <Text style={styles.menuText}>Delete</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
-                  </Modal>
-                )}
-                {expandedPostId === post._id && post.longDescription ? (
-                  <Text style={styles.feedDescription}>
-                    {post.longDescription}
-                    <Text
-                      style={styles.moreText}
-                      onPress={() => setExpandedPostId(null)}
-                    >
-                      {" "}
-                      less..
-                    </Text>
-                  </Text>
-                ) : (
-                  <Text style={styles.feedDescription}>
-                    {post.shortDescription}
-                    {post.longDescription && (
-                      <Text
-                        style={styles.moreText}
-                        onPress={() => setExpandedPostId(post._id)}
-                      >
-                        {" "}
-                        more..
-                      </Text>
-                    )}
-                  </Text>
-                )}
-                <Text style={styles.feedAuthor}>{post.industry}</Text>
-                <Text style={styles.feedAuthor}>{post.tagline}</Text>
-                {/* Display all Cloudinary images below industry and tagline */}
+                <Text style={styles.feedIndustry}>{post.industry}</Text>
                 {post.images && post.images.length > 0 && (
                   <ScrollView
                     horizontal
@@ -197,41 +358,58 @@ const HomeScreen = () => {
                       <Image
                         key={imgUrl + idx}
                         source={{ uri: imgUrl }}
-                        style={{
-                          width: 200,
-                          height: 200,
-                          borderRadius: 12,
-                          marginRight: 10,
-                        }}
+                        style={styles.feedImageProfessional}
                         resizeMode="cover"
                       />
                     ))}
                   </ScrollView>
                 )}
-                {/* Add more fields/images as needed */}
-                <View style={styles.feedcardBottom}>
-                  <View style={styles.feedcardLike}>
-                    <Text style={styles.feedLike}>like</Text>
+                <View style={styles.feedDescriptionContainer}>
+                  {expandedPostId === post._id && post.longDescription ? (
+                    <Text style={styles.feedDescriptionProfessional}>
+                      {post.longDescription}
+                      <Text
+                        style={styles.moreText}
+                        onPress={() => setExpandedPostId(null)}
+                      >
+                        {" "}
+                        less..
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text style={styles.feedDescriptionProfessional}>
+                      {post.shortDescription}
+                      {post.longDescription && (
+                        <Text
+                          style={styles.moreText}
+                          onPress={() => setExpandedPostId(post._id)}
+                        >
+                          {" "}
+                          more..
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.feedcardBottomProfessional}>
+                  <View style={styles.feedcardLikeProfessional}>
+                    <Text style={styles.feedLikeProfessional}>👍 Like</Text>
                   </View>
-                  <View style={styles.feedcardActions}>
+                  <View style={styles.feedcardActionsProfessional}>
                     <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        /* TODO: handle download */
-                      }}
+                      style={styles.actionBtnProfessional}
+                      onPress={() => handleDownloadPdf(post._id)}
                     >
-                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
-                        download
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        Download
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => {
-                        /* TODO: handle qr */
-                      }}
+                      style={styles.actionBtnProfessional}
+                      onPress={() => handleShowQr(post._id)}
                     >
-                      <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
-                        qr
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        QR
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -240,7 +418,159 @@ const HomeScreen = () => {
             ))
           )}
         </View>
+
+        {/* Mentor detail modal with contact */}
+        <Modal
+          transparent
+          animationType="slide"
+          visible={mentorDetailVisible}
+          onRequestClose={closeMentorDetail}
+        >
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            activeOpacity={1}
+            onPress={closeMentorDetail}
+          >
+            <View style={styles.detailModal}>
+              {selectedMentor && (
+                <>
+                  <View style={styles.detailModalHeader}>
+                    <Text style={styles.detailModalTitle}>
+                      {selectedMentor.title || selectedMentor.name || "Mentor"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={closeMentorDetail}
+                      style={styles.closeButton}
+                    >
+                      <Text style={styles.closeButtonText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.detailModalExpertise}>
+                    <Text style={styles.detailModalExpertiseText}>
+                      {selectedMentor.sector ||
+                        selectedMentor.expertise ||
+                        "General"}
+                      {selectedMentor.experienceYears ? (
+                        <Text style={styles.detailModalYears}>
+                          {" "}
+                          • {selectedMentor.experienceYears} years experience
+                        </Text>
+                      ) : (
+                        ""
+                      )}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailModalBody}>
+                    <Text style={styles.detailModalBio}>
+                      {selectedMentor.brief || selectedMentor.bio || ""}
+                    </Text>
+                  </View>
+
+                  {!!selectedMentor.email && (
+                    <View style={styles.detailModalContact}>
+                      <Text style={styles.detailModalContactLabel}>
+                        Contact
+                      </Text>
+                      <Text style={styles.detailModalEmail}>
+                        {selectedMentor.email}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          emailMentor(
+                            selectedMentor.email,
+                            selectedMentor.title || "Mentor Inquiry"
+                          )
+                        }
+                        style={styles.contactButton}
+                      >
+                        <Text style={styles.contactButtonText}>
+                          Email Mentor
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </ScrollView>
+      {qrVisible && (
+        <Modal
+          visible={qrVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setQrVisible(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "rgba(0,0,0,0.3)",
+            }}
+          >
+            <View
+              style={{ backgroundColor: "#fff", padding: 20, borderRadius: 12 }}
+            >
+              <Text style={{ marginBottom: 10, fontWeight: "bold" }}>
+                Scan to download PDF
+              </Text>
+              {qrPostId && (
+                <QRCode
+                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  size={200}
+                />
+              )}
+              <TouchableOpacity
+                onPress={() => setQrVisible(false)}
+                style={{ marginTop: 20 }}
+              >
+                <Text style={{ color: "#6750A4", fontWeight: "bold" }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {posts.length > 0 && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={menuVisible}
+          onRequestClose={() => setMenuVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          >
+            <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  /* TODO: handle update */ setMenuVisible(false);
+                }}
+              >
+                <Text style={styles.menuText}>Update</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  handleDeletePost(menuPostId);
+                  setMenuVisible(false);
+                }}
+              >
+                <Text style={styles.menuText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -265,7 +595,7 @@ const styles = StyleSheet.create({
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -305,66 +635,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  feedcardBottom: {
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-    borderTopWidth: 3,
-    borderTopColor: "#6750A4",
-    backgroundColor: "#ffffffff",
-    paddingVertical: 10,
-  },
-  feedcardLike: {
-    display: "flex",
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fdfcfcff",
-  },
-  feedLike: {
-    color: "#6750A4",
-    fontWeight: "600",
-    //backgroundColor: "#cf0000ff",
-    //alignContent: "center",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  logo: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#6750A4",
-  },
-  notificationButton: {
-    position: "relative",
-    padding: 5,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#FF6B6B",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  notificationCount: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
   greetingSection: {
     paddingHorizontal: 20,
     paddingVertical: 20,
@@ -375,75 +645,11 @@ const styles = StyleSheet.create({
     color: "#333",
     marginBottom: 5,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-  },
-  roleSelector: {
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  roleButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F5F5F5",
-    marginRight: 10,
-  },
-  roleButtonActive: {
-    backgroundColor: "#6750A4",
-  },
-  roleButtonText: {
-    color: "#666",
-    fontWeight: "600",
-  },
-  roleButtonTextActive: {
-    color: "#FFFFFF",
-  },
-  statsContainer: {
-    marginBottom: 20,
-  },
-  statsContent: {
-    paddingHorizontal: 20,
-  },
-  statCard: {
-    width: 140,
-    height: 120,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 16,
-    padding: 15,
-    marginRight: 15,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
-  },
   ctaButton: {
-    flexDirection: "row",
     backgroundColor: "#6750A4",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 10,
-    marginHorizontal: 20,
-    marginBottom: 12,
     width: 150,
     alignSelf: "flex-start",
     justifyContent: "center",
@@ -458,149 +664,298 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
-    marginRight: 6,
   },
-  aiTipPanel: {
-    backgroundColor: "#FFF9E6",
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFD166",
-    marginBottom: 20,
+
+  mentorSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
   },
-  aiTipTitle: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 16,
+    color: "#212121",
+  },
+  mentorCarousel: {
+    paddingRight: 20,
+    paddingBottom: 5,
+  },
+  mentorCard: {
+    width: 280,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginRight: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(158,31,249,0.15)",
+  },
+  mentorImageContainer: {
+    height: 160,
+    backgroundColor: "#f5f5f5",
+  },
+  mentorImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  mentorImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#ddd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mentorImagePlaceholderText: {
+    fontSize: 50,
     fontWeight: "bold",
-    color: "#333",
-    marginBottom: 5,
+    color: "#999",
   },
-  aiTipText: {
+  mentorCardContent: {
+    padding: 16,
+  },
+  mentorCardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 6,
+  },
+  mentorCardBadge: {
+    backgroundColor: "#f0e6ff",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  mentorCardBadgeText: {
+    color: "#6750A4",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  mentorCardDesc: {
     fontSize: 14,
-    color: "#666",
+    color: "#555",
     lineHeight: 20,
   },
+
+  emptyStateContainer: {
+    paddingVertical: 30,
+    alignItems: "center",
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#888",
+    fontStyle: "italic",
+  },
+
   feedSection: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 20,
     paddingBottom: 80,
   },
-  feedHeader: {
-    marginBottom: 15,
-  },
-  feedSectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
-  },
-  searchBar: {
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 10,
-    fontSize: 16,
-  },
-  feedCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 25,
+  feedCardProfessional: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 28,
     shadowColor: "#6750A4",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 10,
-    //border: "10px solid #000000ff",
-    //borderColor: "#a60b9c",
+    shadowRadius: 10,
+    elevation: 5,
     borderWidth: 1,
-    borderColor: "rgba(158, 31, 249, 0.2)",
+    borderColor: "rgba(158, 31, 249, 0.15)",
   },
-  feedHeader: {
+  feedCardTopRowProfessional: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  profilePicContainer: {
+    marginRight: 14,
+  },
+  profilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#eee",
+  },
+  feedCardInfo: {
+    flex: 1,
+  },
+  feedAuthorNameProfessional: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#6750A4",
+  },
+  feedAuthorEmail: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
+  },
+  feedHeaderProfessional: {
     marginBottom: 8,
   },
-  feedTitle: {
-    fontSize: 14,
+  feedTitleProfessional: {
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#333",
-    flex: 1,
-    marginRight: 10,
+    color: "#222",
+    marginBottom: 2,
   },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  rating: {
-    marginLeft: 4,
+  feedTagline: {
+    fontSize: 13,
+    color: "#6750A4",
     fontWeight: "600",
-    color: "#333",
+    marginBottom: 2,
   },
-  feedDescription: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
+  feedIndustry: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  feedImageProfessional: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  feedDescriptionContainer: {
     marginBottom: 10,
   },
-  feedFooter: {
+  feedDescriptionProfessional: {
+    fontSize: 14,
+    color: "#444",
+    lineHeight: 20,
+  },
+  feedcardBottomProfessional: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingTop: 12,
+    marginTop: 8,
   },
-  feedAuthor: {
-    fontSize: 12,
+  feedcardLikeProfessional: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  feedLikeProfessional: {
+    color: "#6750A4",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  feedcardActionsProfessional: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  actionBtnProfessional: {
+    backgroundColor: "#6750A4",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+    fontWeight: "bold",
+    fontSize: 14,
+    overflow: "hidden",
+  },
+  // Modal styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailModal: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    width: "90%",
+    maxHeight: "80%",
+    padding: 0,
+    overflow: "hidden",
+  },
+  detailModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    padding: 16,
+  },
+  detailModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#222",
+    flex: 1,
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: "#666",
+    lineHeight: 24,
+  },
+  detailModalExpertise: {
+    backgroundColor: "#f0e6ff",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  detailModalExpertiseText: {
     color: "#6750A4",
     fontWeight: "600",
+    fontSize: 14,
   },
-  feedAuthorName: {
-    fontSize: 17,
-    color: "#000000ff",
-    fontWeight: "600",
-    marginBottom: 10,
+  detailModalYears: {
+    fontWeight: "400",
   },
-  moreText: {
-    color: "#1976D2",
-    fontWeight: "600",
-    //paddingLeft: 19,
-    fontSize: 13,
-    //fontStyle: "italic",
-    //fontStyle:"underline"
+  detailModalBody: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-
-  feedTimestamp: {
-    fontSize: 12,
-    color: "#999",
+  detailModalBio: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#333",
   },
-  qrCodePlaceholder: {
-    backgroundColor: "#E3F2FD",
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-    alignItems: "center",
+  detailModalContact: {
+    padding: 16,
   },
-  qrText: {
-    color: "#1976D2",
-    fontWeight: "600",
+  detailModalContactLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
   },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
+  detailModalEmail: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 16,
+  },
+  contactButton: {
+    backgroundColor: "#6750A4",
     borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 2,
-    borderColor: "#a60b9c",
+    padding: 14,
+    alignItems: "center",
   },
-  navItem: {
-    padding: 10,
+  contactButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
   },
 });
 
