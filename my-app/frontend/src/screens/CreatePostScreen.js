@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 //import { View, Text, StyleSheet, SafeAreaView, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -12,8 +12,44 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  Alert, // added
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+
+// Change Cloudinary config to be more forgiving
+const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
+const CLOUDINARY_UPLOAD_PRESET = "ml_default";
+const SECTORS = [
+  "Travel",
+  "Automotive",
+  "Technology",
+  "Education",
+  "Health",
+  "Finance",
+  "Retail",
+  "Other",
+];
+
+const uploadToCloudinary = async (localUri) => {
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+    throw new Error("Cloudinary not configured.");
+  }
+  const fileType = (localUri.split(".").pop() || "jpg").toLowerCase();
+  const formData = new FormData();
+  formData.append("file", {
+    uri: localUri,
+    name: `photo_${Date.now()}.${fileType}`,
+    type: `image/${fileType}`,
+  });
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: "POST", body: formData }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const json = await res.json();
+  return json.secure_url;
+};
 
 const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
@@ -87,29 +123,119 @@ const CreatePostScreen = () => {
     }
   };
 
-  const handleMentorSubmit = async () => {
-    try {
-      const response = await fetch("http://192.168.178.202:5000/api/mentors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: mentorName,
-          expertise: mentorExpertise,
-          bio: mentorBio,
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        alert("Mentor profile submitted!");
-        setMentorName("");
-        setMentorExpertise("");
-        setMentorBio("");
-        navigation.navigate("HomeTabs");
-      } else {
-        alert(data.msg || "Failed to submit mentor profile");
+  // New: current user info for mentor attribution
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const userData = await AsyncStorage.getItem("user");
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserName(user.name || "");
+        setUserEmail(user.email || "");
       }
+    })();
+  }, []);
+
+  // ...existing entrepreneur state...
+
+  // Replace old mentor state with new fields
+  const [mentorTitle, setMentorTitle] = useState("");
+  const [mentorSector, setMentorSector] = useState(SECTORS[0]);
+  const [mentorYears, setMentorYears] = useState("3");
+  const [mentorBrief, setMentorBrief] = useState("");
+  const [mentorLocalImages, setMentorLocalImages] = useState([]);
+  const [mentorSubmitting, setMentorSubmitting] = useState(false);
+
+  // New: pick multiple mentor images
+  const pickMentorImages = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission required", "Please allow photo library access.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 6,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const selected = (result.assets || []).map((a) => a.uri);
+      setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
+    }
+  };
+
+  // Replace old handleMentorSubmit with new flow
+  const handleMentorSubmit = async () => {
+    if (!mentorTitle.trim()) return Alert.alert("Validation", "Enter a title.");
+    if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
+    if (isNaN(parseInt(mentorYears)))
+      return Alert.alert("Validation", "Years must be a number.");
+    if (!userName) return Alert.alert("Validation", "User name is required. Please sign in again.");
+
+    const token = await AsyncStorage.getItem("token");
+    setMentorSubmitting(true);
+    
+    try {
+      // Skip image uploads for now
+      console.log("Skipping image uploads due to Cloudinary preset issues");
+      
+      // Create mentor data without images
+      const mentorData = {
+        name: userName,
+        email: userEmail,
+        expertise: mentorSector,
+        bio: mentorBrief.trim(),
+        photos: [], // Empty array instead of trying to upload
+        title: mentorTitle.trim(),
+        experienceYears: parseInt(mentorYears, 10)
+      };
+      
+      console.log("Submitting mentor data:", mentorData);
+      
+      const res = await fetch("http://192.168.178.202:5000/api/mentors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(mentorData),
+      });
+      
+      // Handle response
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server error response:", errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.msg || errorData.message || `Server error (${res.status})`);
+        } catch (e) {
+          throw new Error(`Server error (${res.status}): ${errorText}`);
+        }
+      }
+      
+      Alert.alert(
+        "Success", 
+        "Mentor post created successfully! (Note: Image upload was skipped)"
+      );
+      
+      // Reset form
+      setMentorTitle("");
+      setMentorSector(SECTORS[0]);
+      setMentorYears("3");
+      setMentorBrief("");
+      setMentorLocalImages([]);
+      
+      // Navigate to home to see the post
+      navigation.navigate("HomeTabs");
     } catch (err) {
-      alert("Error: " + err.message);
+      console.error("Submission error:", err);
+      Alert.alert("Error", err.message || "Failed to create post.");
+    } finally {
+      setMentorSubmitting(false);
     }
   };
 
@@ -387,43 +513,103 @@ const CreatePostScreen = () => {
         )}
         {activeForm === "mentor" && (
           <>
-            <Text style={styles.label}>Name</Text>
+            {/* New mentor post form (same UX as Home) */}
+            <Text style={styles.label}>Heading / Title</Text>
             <TextInput
               style={styles.inputField}
-              placeholder="Enter your name"
-              value={mentorName}
-              onChangeText={setMentorName}
+              placeholder="e.g. 8+ years in Travel Tech"
+              value={mentorTitle}
+              onChangeText={setMentorTitle}
             />
-            <Text style={styles.label}>Area of Expertise</Text>
+
+            <Text style={styles.label}>Sector</Text>
+            <View style={styles.chipsRow}>
+              {SECTORS.map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  onPress={() => setMentorSector(s)}
+                  style={[
+                    styles.chip,
+                    mentorSector === s && styles.chipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      mentorSector === s && styles.chipTextActive,
+                    ]}
+                  >
+                    {s}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Years of Experience</Text>
             <TextInput
               style={styles.inputField}
-              placeholder="Eg: Marketing, Finance, Tech"
-              value={mentorExpertise}
-              onChangeText={setMentorExpertise}
+              placeholder="e.g. 5"
+              value={mentorYears}
+              onChangeText={setMentorYears}
+              keyboardType="number-pad"
             />
-            <Text style={styles.label}>Short Bio</Text>
+
+            <Text style={styles.label}>Brief of Experience</Text>
             <TextInput
-              style={[styles.inputField, { height: 80 }]}
-              placeholder="Tell us about yourself"
-              value={mentorBio}
-              onChangeText={setMentorBio}
+              style={[styles.inputField, { height: 110, textAlignVertical: "top" }]}
+              placeholder="Describe your experience..."
               multiline
+              value={mentorBrief}
+              onChangeText={setMentorBrief}
             />
+
+            <Text style={styles.label}>Photos (Optional - currently disabled)</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {mentorLocalImages.map((u, i) => (
+                <TouchableOpacity
+                  key={u + i}
+                  onLongPress={() =>
+                    setMentorLocalImages((prev) => prev.filter((_, idx) => idx !== i))
+                  }
+                  style={{ marginRight: 8, marginBottom: 8 }}
+                >
+                  <Image source={{ uri: u }} style={styles.imageThumb} />
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => Alert.alert(
+                  "Image Upload Disabled",
+                  "Image uploads have been temporarily disabled due to Cloudinary configuration issues. You can still submit the form without images."
+                )}
+                style={[styles.chip, { borderStyle: "dashed", borderWidth: 1, borderColor: "#bbb" }]}
+              >
+                <Text style={{ color: "#999" }}>Images Disabled</Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
-              style={styles.postButton}
+              style={[styles.postButton, mentorSubmitting && { opacity: 0.7 }]}
               onPress={handleMentorSubmit}
+              disabled={mentorSubmitting}
             >
-              <Text style={styles.postButtonText}>Submit</Text>
+              <Text style={styles.postButtonText}>
+                {mentorSubmitting ? "Posting..." : "Post"}
+              </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.discardButton}
               onPress={() => {
-                setMentorName("");
-                setMentorExpertise("");
-                setMentorBio("");
+                setMentorTitle("");
+                setMentorSector(SECTORS[0]);
+                setMentorYears("3");
+                setMentorBrief("");
+                setMentorLocalImages([]);
               }}
             >
-              <Text style={styles.discardButtonText}>Discard</Text>
+              <Text className="discardButtonText" style={styles.discardButtonText}>
+                Discard
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -617,6 +803,28 @@ const styles = StyleSheet.create({
     color: "#6750A4",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  chipsRow: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    gap: 8 
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "#eee",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipActive: { backgroundColor: "#0a7" },
+  chipText: { color: "#333" },
+  chipTextActive: { color: "#fff", fontWeight: "700" },
+  imageThumb: {
+    width: 86,
+    height: 86,
+    borderRadius: 10,
+    backgroundColor: "#eee",
   },
 });
 

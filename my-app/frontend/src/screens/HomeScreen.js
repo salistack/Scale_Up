@@ -9,9 +9,72 @@ import {
   Image,
   TouchableOpacity,
   Modal,
+  TextInput,
+  Alert,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+// Add: image picker (Expo). Install if missing: npx expo install expo-image-picker
+import * as ImagePicker from "expo-image-picker";
+
+// Cloudinary config (set your own)
+const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
+const CLOUDINARY_API_KEY = "972712514358626";
+const CLOUDINARY_API_SECRET = "AhsSmC4D7qFlWQ6ba2l4CKF_9JE";
+
+const SECTORS = [
+  "Travel",
+  "Automotive",
+  "Technology",
+  "Education",
+  "Health",
+  "Finance",
+  "Retail",
+  "Other",
+];
+
+const uploadToCloudinary = async (localUri) => {
+  if (!CLOUDINARY_CLOUD_NAME) {
+    throw new Error("Cloudinary not configured.");
+  }
+  
+  console.log("Starting upload for:", localUri);
+  
+  const fileType = (localUri.split(".").pop() || "jpg").toLowerCase();
+  const formData = new FormData();
+  formData.append("file", {
+    uri: localUri,
+    name: `photo_${Date.now()}.${fileType}`,
+    type: `image/${fileType}`,
+  });
+  
+  // Use API key for upload
+  const timestamp = Math.floor(Date.now() / 1000);
+  formData.append("timestamp", timestamp);
+  formData.append("api_key", CLOUDINARY_API_KEY);
+  // Using raw public upload for simplicity
+  
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+      { method: "POST", body: formData }
+    );
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Cloudinary error:", errorText);
+      throw new Error(`Upload failed (${res.status}): ${errorText}`);
+    }
+    
+    const json = await res.json();
+    console.log("Upload successful:", json.secure_url);
+    return json.secure_url;
+  } catch (err) {
+    console.error("Upload exception:", err);
+    throw err;
+  }
+};
 
 const HomeScreen = () => {
   const handleDeletePost = async (postId) => {
@@ -40,9 +103,20 @@ const HomeScreen = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPostId, setMenuPostId] = useState(null);
   const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState(""); // add
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
   const [mentors, setMentors] = useState([]);
+  const [showMentorForm, setShowMentorForm] = useState(false); // add
+  const [mentorTitle, setMentorTitle] = useState(""); // add
+  const [mentorSector, setMentorSector] = useState(SECTORS[0]); // add
+  const [mentorYears, setMentorYears] = useState("3"); // add
+  const [mentorBrief, setMentorBrief] = useState(""); // add
+  const [mentorLocalImages, setMentorLocalImages] = useState([]); // add
+  const [mentorSubmitting, setMentorSubmitting] = useState(false); // add
+  const [mentorDetailVisible, setMentorDetailVisible] = useState(false); // add
+  const [selectedMentor, setSelectedMentor] = useState(null); // add
+
   const navigation = useNavigation();
 
   const loadUserAndPosts = async () => {
@@ -51,6 +125,7 @@ const HomeScreen = () => {
     if (userData) {
       const user = JSON.parse(userData);
       setUserName(user.name || "");
+      setUserEmail(user.email || ""); // add
     }
 
     // Get JWT token directly
@@ -79,7 +154,7 @@ const HomeScreen = () => {
     } catch (err) {
       console.error("Failed to fetch posts", err);
     }
-    
+
     // Fetch mentors
     try {
       const mentorResponse = await fetch("http://192.168.178.202:5000/api/mentors");
@@ -97,6 +172,126 @@ const HomeScreen = () => {
     }, [])
   );
 
+  // Image picker for mentor photos
+  const pickMentorImages = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission required", "Please allow photo library access.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 6,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const selected = (result.assets || []).map((a) => a.uri);
+      setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
+    }
+  };
+
+  const submitMentorPost = async () => {
+    if (!mentorTitle.trim()) return Alert.alert("Validation", "Enter a title.");
+    if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
+    if (isNaN(parseInt(mentorYears))) return Alert.alert("Validation", "Years must be a number.");
+    if (!userName) return Alert.alert("Validation", "User name is required. Please sign in again.");
+
+    const token = await AsyncStorage.getItem("token");
+    setMentorSubmitting(true);
+    try {
+      // Upload images to Cloudinary with better error handling
+      const uploaded = [];
+      let imageUploadFailed = false;
+      
+      if (mentorLocalImages.length > 0) {
+        for (const uri of mentorLocalImages) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(uri);
+            uploaded.push(cloudinaryUrl);
+          } catch (uploadErr) {
+            console.error("Image upload failed:", uploadErr);
+            imageUploadFailed = true;
+          }
+        }
+        
+        if (imageUploadFailed) {
+          Alert.alert(
+            "Some Images Failed",
+            "Not all images could be uploaded. Continue with the ones that worked?",
+            [
+              { text: "Cancel", style: "cancel", onPress: () => { setMentorSubmitting(false); return; }},
+              { text: "Continue", style: "default" }
+            ]
+          );
+        }
+      }
+      
+      // Match field names the backend expects
+      const mentorData = {
+        name: userName,
+        email: userEmail,
+        expertise: mentorSector, // Using sector as expertise
+        bio: mentorBrief.trim(),
+        photos: uploaded,
+        title: mentorTitle.trim(),
+        experienceYears: parseInt(mentorYears, 10)
+      };
+      
+      // POST to backend
+      const res = await fetch("http://192.168.178.202:5000/api/mentors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(mentorData),
+      });
+      
+      // Better error handling
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server error response:", errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.msg || errorData.message || "Failed to create mentor post");
+        } catch (e) {
+          throw new Error(`Server error (${res.status}): ${errorText}`);
+        }
+      }
+      
+      Alert.alert("Success", "Mentor post created.");
+      // Reset form and refresh
+      setMentorTitle("");
+      setMentorSector(SECTORS[0]);
+      setMentorYears("3");
+      setMentorBrief("");
+      setMentorLocalImages([]);
+      setShowMentorForm(false);
+      loadUserAndPosts();
+    } catch (e) {
+      Alert.alert("Error", e.message || "Failed to create post.");
+    } finally {
+      setMentorSubmitting(false);
+    }
+  };
+
+  const openMentorDetail = (m) => {
+    setSelectedMentor(m);
+    setMentorDetailVisible(true);
+  };
+  const closeMentorDetail = () => {
+    setMentorDetailVisible(false);
+    setSelectedMentor(null);
+  };
+  const emailMentor = (email, title = "Mentor Inquiry") => {
+    if (!email) return;
+    const subject = encodeURIComponent(title);
+    const body = encodeURIComponent("Hello,\n\nI saw your mentor post and would like to connect.\n\nThanks!");
+    Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.greetingSection}>
@@ -109,10 +304,62 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
       <ScrollView style={{ flex: 1 }}>
+        <View style={styles.mentorSection}>
+          <Text style={styles.sectionTitle}>Mentor Experience</Text>
+
+          {mentors.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>No mentors available at the moment</Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mentorCarousel}>
+              {mentors.map((mentor, idx) => {
+                const photo = Array.isArray(mentor.photos) && mentor.photos.length ? mentor.photos[0] : null;
+                const title = mentor.title || mentor.name || "Mentor";
+                const sector = mentor.sector || mentor.expertise || "General";
+                const years = mentor.experienceYears || mentor.years || null;
+                const brief = mentor.brief || mentor.bio || "";
+                return (
+                  <TouchableOpacity 
+                    key={mentor._id || idx} 
+                    onPress={() => openMentorDetail(mentor)} 
+                    style={styles.mentorCard}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.mentorImageContainer}>
+                      {photo ? (
+                        <Image source={{ uri: photo }} style={styles.mentorImage} />
+                      ) : (
+                        <View style={styles.mentorImagePlaceholder}>
+                          <Text style={styles.mentorImagePlaceholderText}>
+                            {title.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.mentorCardContent}>
+                      <Text numberOfLines={1} style={styles.mentorCardTitle}>{title}</Text>
+                      <View style={styles.mentorCardBadge}>
+                        <Text style={styles.mentorCardBadgeText}>
+                          {sector}
+                          {years ? ` • ${years} yrs` : ""}
+                        </Text>
+                      </View>
+                      <Text numberOfLines={2} style={styles.mentorCardDesc}>{brief}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
         <View style={styles.feedSection}>
-          <Text style={styles.feedSectionTitle}>Entrepreneur Posts</Text>
+          <Text style={styles.sectionTitle}>Entrepreneur Posts</Text>
           {posts.length === 0 ? (
-            <Text>No posts yet.</Text>
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>No posts yet</Text>
+            </View>
           ) : (
             posts.map((post) => (
               <View key={post._id} style={styles.feedCard}>
@@ -250,20 +497,54 @@ const HomeScreen = () => {
             ))
           )}
         </View>
-        <View style={styles.mentorSection}>
-          <Text style={styles.sectionTitle}>Mentor Profiles</Text>
-          {mentors.length === 0 ? (
-            <Text style={styles.noMentor}>No mentors yet.</Text>
-          ) : (
-            mentors.map((mentor, idx) => (
-              <View key={idx} style={styles.mentorCard}>
-                <Text style={styles.mentorName}>{mentor.name}</Text>
-                <Text style={styles.mentorExpertise}>{mentor.expertise}</Text>
-                <Text style={styles.mentorBio}>{mentor.bio}</Text>
-              </View>
-            ))
-          )}
-        </View>
+
+        {/* Mentor detail modal with contact */}
+        <Modal transparent animationType="slide" visible={mentorDetailVisible} onRequestClose={closeMentorDetail}>
+          <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={closeMentorDetail}>
+            <View style={styles.detailModal}>
+              {selectedMentor && (
+                <>
+                  <View style={styles.detailModalHeader}>
+                    <Text style={styles.detailModalTitle}>
+                      {selectedMentor.title || selectedMentor.name || "Mentor"}
+                    </Text>
+                    <TouchableOpacity onPress={closeMentorDetail} style={styles.closeButton}>
+                      <Text style={styles.closeButtonText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.detailModalExpertise}>
+                    <Text style={styles.detailModalExpertiseText}>
+                      {(selectedMentor.sector || selectedMentor.expertise || "General")}
+                      {selectedMentor.experienceYears ? 
+                        <Text style={styles.detailModalYears}> • {selectedMentor.experienceYears} years experience</Text> : 
+                        ""}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.detailModalBody}>
+                    <Text style={styles.detailModalBio}>
+                      {selectedMentor.brief || selectedMentor.bio || ""}
+                    </Text>
+                  </View>
+                  
+                  {!!(selectedMentor.email) && (
+                    <View style={styles.detailModalContact}>
+                      <Text style={styles.detailModalContactLabel}>Contact</Text>
+                      <Text style={styles.detailModalEmail}>{selectedMentor.email}</Text>
+                      <TouchableOpacity 
+                        onPress={() => emailMentor(selectedMentor.email, selectedMentor.title || "Mentor Inquiry")} 
+                        style={styles.contactButton}
+                      >
+                        <Text style={styles.contactButtonText}>Email Mentor</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -289,7 +570,7 @@ const styles = StyleSheet.create({
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -329,66 +610,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  feedcardBottom: {
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-    borderTopWidth: 3,
-    borderTopColor: "#6750A4",
-    backgroundColor: "#ffffffff",
-    paddingVertical: 10,
-  },
-  feedcardLike: {
-    display: "flex",
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fdfcfcff",
-  },
-  feedLike: {
-    color: "#6750A4",
-    fontWeight: "600",
-    //backgroundColor: "#cf0000ff",
-    //alignContent: "center",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  logo: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#6750A4",
-  },
-  notificationButton: {
-    position: "relative",
-    padding: 5,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#FF6B6B",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  notificationCount: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
   greetingSection: {
     paddingHorizontal: 20,
     paddingVertical: 20,
@@ -399,75 +620,11 @@ const styles = StyleSheet.create({
     color: "#333",
     marginBottom: 5,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-  },
-  roleSelector: {
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  roleButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F5F5F5",
-    marginRight: 10,
-  },
-  roleButtonActive: {
-    backgroundColor: "#6750A4",
-  },
-  roleButtonText: {
-    color: "#666",
-    fontWeight: "600",
-  },
-  roleButtonTextActive: {
-    color: "#FFFFFF",
-  },
-  statsContainer: {
-    marginBottom: 20,
-  },
-  statsContent: {
-    paddingHorizontal: 20,
-  },
-  statCard: {
-    width: 140,
-    height: 120,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 16,
-    padding: 15,
-    marginRight: 15,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
-  },
   ctaButton: {
-    flexDirection: "row",
     backgroundColor: "#6750A4",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 10,
-    marginHorizontal: 20,
-    marginBottom: 12,
     width: 150,
     alignSelf: "flex-start",
     justifyContent: "center",
@@ -482,177 +639,202 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
-    marginRight: 6,
   },
-  aiTipPanel: {
-    backgroundColor: "#FFF9E6",
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FFD166",
-    marginBottom: 20,
+  
+  mentorSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
   },
-  aiTipTitle: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 16,
+    color: "#212121",
+  },
+  mentorCarousel: {
+    paddingRight: 20,
+    paddingBottom: 5,
+  },
+  mentorCard: {
+    width: 280,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginRight: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(158,31,249,0.15)",
+  },
+  mentorImageContainer: {
+    height: 160,
+    backgroundColor: "#f5f5f5",
+  },
+  mentorImage: {
+    width: "100%", 
+    height: "100%", 
+    resizeMode: "cover"
+  },
+  mentorImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#ddd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mentorImagePlaceholderText: {
+    fontSize: 50,
     fontWeight: "bold",
-    color: "#333",
-    marginBottom: 5,
+    color: "#999"
   },
-  aiTipText: {
+  mentorCardContent: {
+    padding: 16,
+  },
+  mentorCardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 6,
+  },
+  mentorCardBadge: {
+    backgroundColor: "#f0e6ff",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  mentorCardBadgeText: {
+    color: "#6750A4",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  mentorCardDesc: {
     fontSize: 14,
-    color: "#666",
+    color: "#555",
     lineHeight: 20,
   },
-  feedSection: {
-    paddingHorizontal: 10,
-    paddingBottom: 80,
+  
+  emptyStateContainer: {
+    paddingVertical: 30,
+    alignItems: "center",
   },
-  feedHeader: {
-    marginBottom: 15,
-  },
-  feedSectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
-  },
-  searchBar: {
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 10,
+  emptyStateText: {
     fontSize: 16,
+    color: "#888",
+    fontStyle: "italic",
+  },
+  
+  feedSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 80,
   },
   feedCard: {
     backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 25,
     shadowColor: "#6750A4",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 10,
-    //border: "10px solid #000000ff",
-    //borderColor: "#a60b9c",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "rgba(158, 31, 249, 0.2)",
+    borderColor: "rgba(158, 31, 249, 0.15)",
   },
-  feedHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  feedTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
+  
+  // Modal styles
+  menuOverlay: {
     flex: 1,
-    marginRight: 10,
-  },
-  ratingContainer: {
-    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  rating: {
-    marginLeft: 4,
+  detailModal: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    width: "90%",
+    maxHeight: "80%",
+    padding: 0,
+    overflow: "hidden",
+  },
+  detailModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    padding: 16,
+  },
+  detailModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#222",
+    flex: 1,
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: "#666",
+    lineHeight: 24,
+  },
+  detailModalExpertise: {
+    backgroundColor: "#f0e6ff",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  detailModalExpertiseText: {
+    color: "#6750A4",
     fontWeight: "600",
+    fontSize: 14,
+  },
+  detailModalYears: {
+    fontWeight: "400",
+  },
+  detailModalBody: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  detailModalBio: {
+    fontSize: 16,
+    lineHeight: 24,
     color: "#333",
   },
-  feedDescription: {
+  detailModalContact: {
+    padding: 16,
+  },
+  detailModalContactLabel: {
     fontSize: 14,
     color: "#666",
-    lineHeight: 20,
-    marginBottom: 10,
+    marginBottom: 4,
   },
-  feedFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  feedAuthor: {
-    fontSize: 12,
-    color: "#6750A4",
-    fontWeight: "600",
-  },
-  feedAuthorName: {
-    fontSize: 17,
-    color: "#000000ff",
-    fontWeight: "600",
-    marginBottom: 10,
-  },
-  moreText: {
-    color: "#1976D2",
-    fontWeight: "600",
-    //paddingLeft: 19,
-    fontSize: 13,
-    //fontStyle: "italic",
-    //fontStyle:"underline"
-  },
-
-  feedTimestamp: {
-    fontSize: 12,
-    color: "#999",
-  },
-  qrCodePlaceholder: {
-    backgroundColor: "#E3F2FD",
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  qrText: {
-    color: "#1976D2",
-    fontWeight: "600",
-  },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 2,
-    borderColor: "#a60b9c",
-  },
-  navItem: {
-    padding: 10,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginVertical: 12,
-  },
-  noMentor: {
-    color: "#888",
-    fontStyle: "italic",
-    marginBottom: 12,
-  },
-  mentorCard: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-  },
-  mentorName: {
+  detailModalEmail: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 16,
   },
-  mentorExpertise: {
-    fontSize: 14,
-    color: "#6750A4",
+  contactButton: {
+    backgroundColor: "#6750A4",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
   },
-  mentorBio: {
-    fontSize: 13,
-    color: "#333",
+  contactButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
   },
 });
 
