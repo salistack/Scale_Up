@@ -1,3 +1,4 @@
+import QRCode from "react-native-qrcode-svg";
 import React, { useEffect, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -14,6 +15,8 @@ import {
   Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // Add: image picker (Expo). Install if missing: npx expo install expo-image-picker
 import * as ImagePicker from "expo-image-picker";
@@ -81,7 +84,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.178.202:5000/api/entrepreneur/posts/${postId}`,
+        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -107,16 +110,6 @@ const HomeScreen = () => {
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
   const [mentors, setMentors] = useState([]);
-  const [showMentorForm, setShowMentorForm] = useState(false); // add
-  const [mentorTitle, setMentorTitle] = useState(""); // add
-  const [mentorSector, setMentorSector] = useState(SECTORS[0]); // add
-  const [mentorYears, setMentorYears] = useState("3"); // add
-  const [mentorBrief, setMentorBrief] = useState(""); // add
-  const [mentorLocalImages, setMentorLocalImages] = useState([]); // add
-  const [mentorSubmitting, setMentorSubmitting] = useState(false); // add
-  const [mentorDetailVisible, setMentorDetailVisible] = useState(false); // add
-  const [selectedMentor, setSelectedMentor] = useState(null); // add
-
   const navigation = useNavigation();
 
   const loadUserAndPosts = async () => {
@@ -134,7 +127,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.178.202:5000/api/entrepreneur/posts",
+        "http://192.168.1.100:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -154,143 +147,20 @@ const HomeScreen = () => {
     } catch (err) {
       console.error("Failed to fetch posts", err);
     }
-
-    // Fetch mentors
-    try {
-      const mentorResponse = await fetch("http://192.168.178.202:5000/api/mentors");
-      const mentorData = await mentorResponse.json();
-      setMentors(Array.isArray(mentorData) ? mentorData : []);
-    } catch (err) {
-      console.error("Failed to fetch mentors", err);
-      setMentors([]);
-    }
   };
+
+  useEffect(() => {
+    fetch("http://192.168.178.202:5000/api/mentors")
+      .then((res) => res.json())
+      .then((data) => setMentors(data))
+      .catch(() => setMentors([]));
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
       loadUserAndPosts();
     }, [])
   );
-
-  // Image picker for mentor photos
-  const pickMentorImages = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission required", "Please allow photo library access.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      selectionLimit: 6,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      const selected = (result.assets || []).map((a) => a.uri);
-      setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
-    }
-  };
-
-  const submitMentorPost = async () => {
-    if (!mentorTitle.trim()) return Alert.alert("Validation", "Enter a title.");
-    if (!mentorBrief.trim()) return Alert.alert("Validation", "Enter a brief.");
-    if (isNaN(parseInt(mentorYears))) return Alert.alert("Validation", "Years must be a number.");
-    if (!userName) return Alert.alert("Validation", "User name is required. Please sign in again.");
-
-    const token = await AsyncStorage.getItem("token");
-    setMentorSubmitting(true);
-    try {
-      // Upload images to Cloudinary with better error handling
-      const uploaded = [];
-      let imageUploadFailed = false;
-      
-      if (mentorLocalImages.length > 0) {
-        for (const uri of mentorLocalImages) {
-          try {
-            const cloudinaryUrl = await uploadToCloudinary(uri);
-            uploaded.push(cloudinaryUrl);
-          } catch (uploadErr) {
-            console.error("Image upload failed:", uploadErr);
-            imageUploadFailed = true;
-          }
-        }
-        
-        if (imageUploadFailed) {
-          Alert.alert(
-            "Some Images Failed",
-            "Not all images could be uploaded. Continue with the ones that worked?",
-            [
-              { text: "Cancel", style: "cancel", onPress: () => { setMentorSubmitting(false); return; }},
-              { text: "Continue", style: "default" }
-            ]
-          );
-        }
-      }
-      
-      // Match field names the backend expects
-      const mentorData = {
-        name: userName,
-        email: userEmail,
-        expertise: mentorSector, // Using sector as expertise
-        bio: mentorBrief.trim(),
-        photos: uploaded,
-        title: mentorTitle.trim(),
-        experienceYears: parseInt(mentorYears, 10)
-      };
-      
-      // POST to backend
-      const res = await fetch("http://192.168.178.202:5000/api/mentors", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(mentorData),
-      });
-      
-      // Better error handling
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Server error response:", errorText);
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          throw new Error(errorData.msg || errorData.message || "Failed to create mentor post");
-        } catch (e) {
-          throw new Error(`Server error (${res.status}): ${errorText}`);
-        }
-      }
-      
-      Alert.alert("Success", "Mentor post created.");
-      // Reset form and refresh
-      setMentorTitle("");
-      setMentorSector(SECTORS[0]);
-      setMentorYears("3");
-      setMentorBrief("");
-      setMentorLocalImages([]);
-      setShowMentorForm(false);
-      loadUserAndPosts();
-    } catch (e) {
-      Alert.alert("Error", e.message || "Failed to create post.");
-    } finally {
-      setMentorSubmitting(false);
-    }
-  };
-
-  const openMentorDetail = (m) => {
-    setSelectedMentor(m);
-    setMentorDetailVisible(true);
-  };
-  const closeMentorDetail = () => {
-    setMentorDetailVisible(false);
-    setSelectedMentor(null);
-  };
-  const emailMentor = (email, title = "Mentor Inquiry") => {
-    if (!email) return;
-    const subject = encodeURIComponent(title);
-    const body = encodeURIComponent("Hello,\n\nI saw your mentor post and would like to connect.\n\nThanks!");
-    Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`);
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -474,7 +344,7 @@ const HomeScreen = () => {
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={() => {
-                        /* TODO: handle download */
+                        handleDownloadPdf(post._id);
                       }}
                     >
                       <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
@@ -484,7 +354,7 @@ const HomeScreen = () => {
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={() => {
-                        /* TODO: handle qr */
+                        handleShowQr(post._id);
                       }}
                     >
                       <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
@@ -546,6 +416,45 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </Modal>
       </ScrollView>
+      {qrVisible && (
+        <Modal
+          visible={qrVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setQrVisible(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "rgba(0,0,0,0.3)",
+            }}
+          >
+            <View
+              style={{ backgroundColor: "#fff", padding: 20, borderRadius: 12 }}
+            >
+              <Text style={{ marginBottom: 10, fontWeight: "bold" }}>
+                Scan to download PDF
+              </Text>
+              {qrPostId && (
+                <QRCode
+                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  size={200}
+                />
+              )}
+              <TouchableOpacity
+                onPress={() => setQrVisible(false)}
+                style={{ marginTop: 20 }}
+              >
+                <Text style={{ color: "#6750A4", fontWeight: "bold" }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };

@@ -21,12 +21,15 @@ const {
   getAllPosts,
   updatePost,
   deletePost,
+  downloadPostPdf,
 } = require("../controllers/entrepreneurPostController");
 
 // Use upload.array('images', 10) for multiple image upload
+
 router.post("/", auth, upload.array("images", 10), createPost);
 router.get("/", auth, getAllPosts);
 router.put("/:id", auth, updatePost);
 router.delete("/:id", auth, deletePost);
+router.get("/:id/download-pdf", downloadPostPdf);
 
 module.exports = router;
