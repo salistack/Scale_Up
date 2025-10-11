@@ -8,6 +8,8 @@ const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const investorProposalRoutes = require("./routes/investorProposalRoutes");
 const entrepreneurPostRoutes = require("./routes/entrepreneurPostRoutes");
+const franchiseRoutes = require("./routes/FranchiseRoutes");
+
 const mentorRoutes = require("./routes/mentorRoutes");
 
 const app = express();
@@ -17,6 +19,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/proposals", investorProposalRoutes);
+app.use("/api/franchise", franchiseRoutes);
 app.use("/api/entrepreneur/posts", entrepreneurPostRoutes);
 app.use("/api/mentors", mentorRoutes);
 
