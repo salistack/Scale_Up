@@ -30,6 +30,6 @@ router.post("/", auth, upload.array("images", 10), createPost);
 router.get("/", auth, getAllPosts);
 router.put("/:id", auth, updatePost);
 router.delete("/:id", auth, deletePost);
-router.get("/:id/download-pdf", auth, downloadPostPdf);
+router.get("/:id/download-pdf", downloadPostPdf);
 
 module.exports = router;

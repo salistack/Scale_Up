@@ -1,3 +1,4 @@
+import QRCode from "react-native-qrcode-svg";
 import React, { useEffect, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -45,6 +46,8 @@ const HomeScreen = () => {
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
   const [mentors, setMentors] = useState([]);
+  const [qrVisible, setQrVisible] = useState(false);
+  const [qrPostId, setQrPostId] = useState(null);
   const navigation = useNavigation();
 
   const loadUserAndPosts = async () => {
@@ -84,7 +87,7 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://192.168.8.101:5000/api/mentors")
+    fetch("http://192.168.1.100:5000/api/mentors")
       .then((res) => res.json())
       .then((data) => setMentors(data))
       .catch(() => setMentors([]));
@@ -121,6 +124,11 @@ const HomeScreen = () => {
     } catch (err) {
       alert("Error downloading PDF: " + err.message);
     }
+  };
+
+  const handleShowQr = (postId) => {
+    setQrPostId(postId);
+    setQrVisible(true);
   };
 
   return (
@@ -263,7 +271,7 @@ const HomeScreen = () => {
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={() => {
-                        /* TODO: handle qr */
+                        handleShowQr(post._id);
                       }}
                     >
                       <Text style={{ color: "#ffffffff", fontWeight: "bold" }}>
@@ -291,6 +299,45 @@ const HomeScreen = () => {
           )}
         </View>
       </ScrollView>
+      {qrVisible && (
+        <Modal
+          visible={qrVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setQrVisible(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "rgba(0,0,0,0.3)",
+            }}
+          >
+            <View
+              style={{ backgroundColor: "#fff", padding: 20, borderRadius: 12 }}
+            >
+              <Text style={{ marginBottom: 10, fontWeight: "bold" }}>
+                Scan to download PDF
+              </Text>
+              {qrPostId && (
+                <QRCode
+                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  size={200}
+                />
+              )}
+              <TouchableOpacity
+                onPress={() => setQrVisible(false)}
+                style={{ marginTop: 20 }}
+              >
+                <Text style={{ color: "#6750A4", fontWeight: "bold" }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
