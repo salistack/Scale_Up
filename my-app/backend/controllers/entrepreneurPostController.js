@@ -47,7 +47,7 @@ exports.updatePost = async (req, res) => {
     const post = await EntrepreneurPost.findById(req.params.id);
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
-    if (post.user.toString() !== req.user)
+    if (post.user.toString() !== req.user.id)
       return res.status(401).json({ msg: "Not authorized" });
 
     Object.assign(post, req.body);

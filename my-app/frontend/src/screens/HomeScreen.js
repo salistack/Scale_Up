@@ -106,6 +106,75 @@ const HomeScreen = () => {
   };
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPostId, setMenuPostId] = useState(null);
+  // Edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState({
+    businessTitle: "",
+    tagline: "",
+    industry: "",
+    shortDescription: "",
+    longDescription: "",
+    fundAmount: "",
+    otherNeeds: "",
+  });
+  const [editPostId, setEditPostId] = useState(null);
+  // Open edit modal with post data
+  const openEditModal = (post) => {
+    setEditForm({
+      businessTitle: post.businessTitle || "",
+      tagline: post.tagline || "",
+      industry: post.industry || "",
+      shortDescription: post.shortDescription || "",
+      longDescription: post.longDescription || "",
+      fundAmount: post.fundAmount ? String(post.fundAmount) : "",
+      otherNeeds: post.otherNeeds || "",
+    });
+    setEditPostId(post._id);
+    setEditModalVisible(true);
+  };
+
+  // Handle edit form change
+  const handleEditFormChange = (field, value) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Submit edit form
+  const handleEditSubmit = async () => {
+    const token = await AsyncStorage.getItem("token");
+    try {
+      const response = await fetch(
+        `http://192.168.1.102:5000/api/entrepreneur/posts/${editPostId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(editForm),
+        }
+      );
+      if (response.ok) {
+        setEditModalVisible(false);
+        setEditPostId(null);
+        setEditForm({
+          businessTitle: "",
+          tagline: "",
+          industry: "",
+          shortDescription: "",
+          longDescription: "",
+          fundAmount: "",
+          otherNeeds: "",
+        });
+        loadUserAndPosts();
+        Alert.alert("Success", "Post updated successfully");
+      } else {
+        const errorText = await response.text();
+        Alert.alert("Error", errorText || "Failed to update post");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Failed to update post");
+    }
+  };
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState(""); // add
   const [posts, setPosts] = useState([]);
@@ -610,7 +679,10 @@ const HomeScreen = () => {
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
-                  /* TODO: handle update */ setMenuVisible(false);
+                  // Open edit modal for selected post
+                  const post = posts.find((p) => p._id === menuPostId);
+                  setMenuVisible(false);
+                  if (post) openEditModal(post);
                 }}
               >
                 <Text style={styles.menuText}>Update</Text>
@@ -628,6 +700,175 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Edit Post Modal */}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.menuOverlay}>
+          <View style={[styles.menuContainer, { minWidth: 300 }]}>
+            <Text
+              style={{ fontWeight: "bold", fontSize: 18, marginBottom: 12 }}
+            >
+              Edit Post
+            </Text>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Business Title
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Business Title"
+                value={editForm.businessTitle}
+                onChangeText={(text) =>
+                  handleEditFormChange("businessTitle", text)
+                }
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Tagline
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Tagline"
+                value={editForm.tagline}
+                onChangeText={(text) => handleEditFormChange("tagline", text)}
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Industry
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Industry"
+                value={editForm.industry}
+                onChangeText={(text) => handleEditFormChange("industry", text)}
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Short Description
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Short Description"
+                value={editForm.shortDescription}
+                onChangeText={(text) =>
+                  handleEditFormChange("shortDescription", text)
+                }
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Long Description
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                  height: 60,
+                  textAlignVertical: "top",
+                }}
+                placeholder="Long Description"
+                multiline
+                value={editForm.longDescription}
+                onChangeText={(text) =>
+                  handleEditFormChange("longDescription", text)
+                }
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Fund Amount
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Fund Amount"
+                value={editForm.fundAmount}
+                keyboardType="numeric"
+                onChangeText={(text) =>
+                  handleEditFormChange("fundAmount", text)
+                }
+              />
+            </View>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                Other Needs
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                }}
+                placeholder="Other Needs"
+                value={editForm.otherNeeds}
+                onChangeText={(text) =>
+                  handleEditFormChange("otherNeeds", text)
+                }
+              />
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 12,
+              }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.actionBtnProfessional,
+                  { backgroundColor: "#ccc" },
+                ]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={{ color: "#333", fontWeight: "bold" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionBtnProfessional}
+                onPress={handleEditSubmit}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
