@@ -84,7 +84,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
+        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -148,7 +148,7 @@ const HomeScreen = () => {
       const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
 
       const downloadResumable = FileSystem.createDownloadResumable(
-        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}/download-pdf`,
         fileUri,
         {
           headers: {
@@ -188,7 +188,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.1.100:5000/api/entrepreneur/posts",
+        "http://192.168.8.101:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -211,7 +211,7 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://192.168.1.100:5000/api/mentors")
+    fetch("http://192.168.8.101:5000/api/mentors")
       .then((res) => res.json())
       .then((data) => setMentors(data))
       .catch(() => setMentors([]));
@@ -520,7 +520,7 @@ const HomeScreen = () => {
               </Text>
               {qrPostId && (
                 <QRCode
-                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  value={`http://192.168.8.101:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                   size={200}
                 />
               )}
