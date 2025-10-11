@@ -31,7 +31,7 @@ const InvestorFeed = ({ navigation }) => {
           }
         }
 
-        const res = await fetch("http://192.168.8.101:5000/api/proposals", {
+        const res = await fetch("http://192.168.1.102:5000/api/proposals", {
           headers: { "Content-Type": "application/json" },
         });
         if (!res.ok) {
@@ -68,7 +68,7 @@ const InvestorFeed = ({ navigation }) => {
         const hostFromPackager = debuggerHost.split(":")[0];
         if (hostFromPackager) hosts.push(hostFromPackager);
       }
-      hosts.push("192.168.8.101", "localhost", "127.0.0.1", "10.0.2.2");
+      hosts.push("192.168.1.102", "localhost", "127.0.0.1", "10.0.2.2");
 
       let lastErr = null;
       let ok = false;
@@ -124,7 +124,7 @@ const InvestorFeed = ({ navigation }) => {
               }
 
               const res = await fetch(
-                `http://192.168.8.101:5000/api/proposals/${id}`,
+                `http://192.168.1.102:5000/api/proposals/${id}`,
                 {
                   method: "DELETE",
                   headers: {
@@ -150,14 +150,15 @@ const InvestorFeed = ({ navigation }) => {
       ]
     );
   };
-  
-  const handleEdit = (proposal) => navigation.navigate("EditProposal", { id: proposal._id });
+
+  const handleEdit = (proposal) =>
+    navigation.navigate("EditProposal", { id: proposal._id });
 
   const getRelativeTime = (date) => {
     if (!date) return "";
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
-    
+
     if (diff < 60) return "just now";
     if (diff < 3600) return `${Math.floor(diff / 60)}m`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
@@ -173,7 +174,7 @@ const InvestorFeed = ({ navigation }) => {
         <View style={styles.headerDivider} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
@@ -221,11 +222,17 @@ const InvestorFeed = ({ navigation }) => {
                 {/* Investment Highlight Banner */}
                 <View style={styles.highlightBanner}>
                   <View style={styles.highlightLeft}>
-                    <Text style={styles.fundingType}>{p.fundingType || "Investment"}</Text>
-                    <Text style={styles.amount}>{p.investmentAmount || "-"}</Text>
+                    <Text style={styles.fundingType}>
+                      {p.fundingType || "Investment"}
+                    </Text>
+                    <Text style={styles.amount}>
+                      {p.investmentAmount || "-"}
+                    </Text>
                   </View>
                   <View style={styles.roiBadge}>
-                    <Text style={styles.roiText}>ROI {p.expectedROI ?? "-"}%</Text>
+                    <Text style={styles.roiText}>
+                      ROI {p.expectedROI ?? "-"}%
+                    </Text>
                   </View>
                 </View>
 
@@ -242,7 +249,9 @@ const InvestorFeed = ({ navigation }) => {
                   </View>
                   <View style={styles.tag}>
                     <Text style={styles.tagIcon}>📈</Text>
-                    <Text style={styles.tagText}>Interest: {p.interestLevel ?? "-"}</Text>
+                    <Text style={styles.tagText}>
+                      Interest: {p.interestLevel ?? "-"}
+                    </Text>
                   </View>
                 </View>
 
@@ -273,7 +282,10 @@ const InvestorFeed = ({ navigation }) => {
                   <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() =>
-                      Alert.alert("Saved", "Saved to bookmarks (not implemented)")
+                      Alert.alert(
+                        "Saved",
+                        "Saved to bookmarks (not implemented)"
+                      )
                     }
                   >
                     <Text style={styles.actionIcon}>🔖</Text>
@@ -310,14 +322,20 @@ const InvestorFeed = ({ navigation }) => {
                             style={styles.ownerBtn}
                             onPress={() => handleEdit(p)}
                           >
-                            <Text style={styles.ownerBtnText}>✏️ Edit Post</Text>
+                            <Text style={styles.ownerBtnText}>
+                              ✏️ Edit Post
+                            </Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
                             style={[styles.ownerBtn, styles.deleteOwnerBtn]}
                             onPress={() => handleDelete(p._id)}
                           >
-                            <Text style={[styles.ownerBtnText, styles.deleteText]}>🗑️ Delete</Text>
+                            <Text
+                              style={[styles.ownerBtnText, styles.deleteText]}
+                            >
+                              🗑️ Delete
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -336,9 +354,9 @@ const InvestorFeed = ({ navigation }) => {
 
 // --- Enhanced Modern UI Styles ---
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#F0F2F5" 
+  container: {
+    flex: 1,
+    backgroundColor: "#F0F2F5",
   },
   headerContainer: {
     backgroundColor: "#fff",
@@ -356,9 +374,9 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#E4E6EB",
   },
-  scroll: { 
+  scroll: {
     paddingTop: 12,
-    paddingBottom: 40 
+    paddingBottom: 40,
   },
   loadingContainer: {
     alignItems: "center",
@@ -387,8 +405,8 @@ const styles = StyleSheet.create({
     color: "#1C1E21",
     marginBottom: 8,
   },
-  emptyText: { 
-    color: "#65676B", 
+  emptyText: {
+    color: "#65676B",
     textAlign: "center",
     fontSize: 15,
     lineHeight: 20,
@@ -402,9 +420,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 2,
   },
-  cardHeader: { 
-    flexDirection: "row", 
-    alignItems: "center", 
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
@@ -418,22 +436,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  avatarText: { 
-    color: "#fff", 
-    fontWeight: "700", 
-    fontSize: 18 
+  avatarText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 18,
   },
   headerInfo: {
     flex: 1,
   },
-  name: { 
-    fontWeight: "700", 
-    fontSize: 16, 
+  name: {
+    fontWeight: "700",
+    fontSize: 16,
     color: "#1C1E21",
     marginBottom: 2,
   },
-  time: { 
-    fontSize: 13, 
+  time: {
+    fontSize: 13,
     color: "#65676B",
     fontWeight: "400",
   },
@@ -468,7 +486,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  amount: { 
+  amount: {
     fontSize: 24,
     fontWeight: "800",
     color: "#1C1E21",
@@ -484,16 +502,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  postBody: { 
-    fontSize: 15, 
-    color: "#1C1E21", 
+  postBody: {
+    fontSize: 15,
+    color: "#1C1E21",
     paddingHorizontal: 16,
     marginBottom: 12,
     lineHeight: 22,
   },
-  tags: { 
-    flexDirection: "row", 
-    flexWrap: "wrap", 
+  tags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: 16,
     marginBottom: 12,
     gap: 8,
@@ -540,8 +558,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
   },
-  footer: { 
-    flexDirection: "row", 
+  footer: {
+    flexDirection: "row",
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
