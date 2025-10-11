@@ -84,7 +84,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.1.100:5000/api/entrepreneur/posts/${postId}`,
+        `http://192.168.178.202:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -110,7 +110,65 @@ const HomeScreen = () => {
   const [posts, setPosts] = useState([]);
   const [expandedPostId, setExpandedPostId] = useState(null); // Track expanded post ID
   const [mentors, setMentors] = useState([]);
+  // Add missing state variables
+  const [mentorDetailVisible, setMentorDetailVisible] = useState(false);
+  const [selectedMentor, setSelectedMentor] = useState(null);
+  const [qrVisible, setQrVisible] = useState(false);
+  const [qrPostId, setQrPostId] = useState(null);
+  
   const navigation = useNavigation();
+
+  // Add missing functions for mentor details
+  const openMentorDetail = (mentor) => {
+    setSelectedMentor(mentor);
+    setMentorDetailVisible(true);
+  };
+
+  const closeMentorDetail = () => {
+    setMentorDetailVisible(false);
+    setSelectedMentor(null);
+  };
+
+  const emailMentor = (email, subject) => {
+    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+    Linking.openURL(mailtoUrl).catch(err => 
+      Alert.alert('Error', 'Could not open email client')
+    );
+  };
+
+  // Add missing functions for QR code
+  const handleShowQr = (postId) => {
+    setQrPostId(postId);
+    setQrVisible(true);
+  };
+
+  const handleDownloadPdf = async (postId) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
+      
+      const downloadResumable = FileSystem.createDownloadResumable(
+        `http://192.168.178.202:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        fileUri,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      const { uri } = await downloadResumable.downloadAsync();
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        Alert.alert("Sharing not available", "Sharing is not available on this device");
+      }
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      Alert.alert("Download Failed", "Could not download the PDF");
+    }
+  };
 
   const loadUserAndPosts = async () => {
     // Get user name
@@ -127,7 +185,7 @@ const HomeScreen = () => {
     // Fetch entrepreneur posts with Authorization header
     try {
       const response = await fetch(
-        "http://192.168.1.100:5000/api/entrepreneur/posts",
+        "http://192.168.178.202:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -439,7 +497,7 @@ const HomeScreen = () => {
               </Text>
               {qrPostId && (
                 <QRCode
-                  value={`http://192.168.1.100:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                  value={`http://192.168.178.202:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                   size={200}
                 />
               )}
