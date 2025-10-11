@@ -127,7 +127,8 @@ const CreatePostScreen = () => {
   };
 
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       alert("Permission to access gallery is required!");
       return;
@@ -140,10 +141,7 @@ const CreatePostScreen = () => {
     });
 
     if (!result.canceled) {
-      setSelectedImages((prev) => [
-        ...prev,
-        ...result.assets,
-      ]);
+      setSelectedImages((prev) => [...prev, ...result.assets]);
     }
   };
 
@@ -177,7 +175,7 @@ const CreatePostScreen = () => {
       formData.append("longDescription", longDescription);
       formData.append("fundAmount", fundAmount);
       formData.append("otherNeeds", otherNeeds);
-      
+
       if (selectedImages.length > 0) {
         for (const asset of selectedImages) {
           console.log("Uploading asset:", asset);
@@ -204,9 +202,9 @@ const CreatePostScreen = () => {
           }
         }
       }
-      
+
       const response = await fetch(
-        "http://192.168.1.100:5000/api/entrepreneur/posts",
+        "http://192.168.8.101:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -254,7 +252,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://192.168.1.100:5000/api/mentors", {
+      const res = await fetch("http://192.168.8.101:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -723,7 +721,10 @@ const CreatePostScreen = () => {
               multiline
             />
 
-            <TouchableOpacity style={styles.postButton} onPress={handleInvestorSubmit}>
+            <TouchableOpacity
+              style={styles.postButton}
+              onPress={handleInvestorSubmit}
+            >
               <Text style={styles.postButtonText}>Submit Proposal</Text>
             </TouchableOpacity>
 

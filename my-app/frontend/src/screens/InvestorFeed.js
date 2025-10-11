@@ -9,10 +9,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native"; // Added
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
-const InvestorFeed = ({ navigation }) => {
+const InvestorFeed = () => {
+  const navigation = useNavigation(); // Added
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -31,7 +33,7 @@ const InvestorFeed = ({ navigation }) => {
           }
         }
 
-        const res = await fetch("http://192.168.1.102:5000/api/proposals", {
+        const res = await fetch("http://192.168.8.101:5000/api/proposals", {
           headers: { "Content-Type": "application/json" },
         });
         if (!res.ok) {
@@ -51,7 +53,6 @@ const InvestorFeed = ({ navigation }) => {
     load();
   }, []);
 
-  // --- Existing working contact() logic preserved ---
   const contact = async (id) => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -68,7 +69,7 @@ const InvestorFeed = ({ navigation }) => {
         const hostFromPackager = debuggerHost.split(":")[0];
         if (hostFromPackager) hosts.push(hostFromPackager);
       }
-      hosts.push("192.168.1.102", "localhost", "127.0.0.1", "10.0.2.2");
+      hosts.push("192.168.8.101", "localhost", "127.0.0.1", "10.0.2.2");
 
       let lastErr = null;
       let ok = false;
@@ -105,7 +106,6 @@ const InvestorFeed = ({ navigation }) => {
     }
   };
 
-  // --- Keep delete and edit untouched ---
   const handleDelete = async (id) => {
     Alert.alert(
       "Delete Proposal",
@@ -124,7 +124,7 @@ const InvestorFeed = ({ navigation }) => {
               }
 
               const res = await fetch(
-                `http://192.168.1.102:5000/api/proposals/${id}`,
+                `http://192.168.8.101:5000/api/proposals/${id}`,
                 {
                   method: "DELETE",
                   headers: {
@@ -151,8 +151,9 @@ const InvestorFeed = ({ navigation }) => {
     );
   };
 
-  const handleEdit = (proposal) =>
+  const handleEdit = (proposal) => {
     navigation.navigate("EditProposal", { id: proposal._id });
+  };
 
   const getRelativeTime = (date) => {
     if (!date) return "";
@@ -168,7 +169,6 @@ const InvestorFeed = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Modern Header */}
       <View style={styles.headerContainer}>
         <Text style={styles.header}>Investment Feed</Text>
         <View style={styles.headerDivider} />
@@ -205,7 +205,6 @@ const InvestorFeed = ({ navigation }) => {
 
             return (
               <View key={p._id} style={styles.card}>
-                {/* Post Header - LinkedIn/Instagram Style */}
                 <View style={styles.cardHeader}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initials}</Text>
@@ -219,7 +218,6 @@ const InvestorFeed = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Investment Highlight Banner */}
                 <View style={styles.highlightBanner}>
                   <View style={styles.highlightLeft}>
                     <Text style={styles.fundingType}>
@@ -236,12 +234,10 @@ const InvestorFeed = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Post Content */}
                 <Text style={styles.postBody} numberOfLines={4}>
                   {p.description}
                 </Text>
 
-                {/* Tags - Instagram Story Style */}
                 <View style={styles.tags}>
                   <View style={styles.tag}>
                     <Text style={styles.tagIcon}>📊</Text>
@@ -255,7 +251,6 @@ const InvestorFeed = ({ navigation }) => {
                   </View>
                 </View>
 
-                {/* Engagement Metrics - Facebook/LinkedIn Style */}
                 <View style={styles.metricsRow}>
                   <View style={styles.metric}>
                     <Text style={styles.metricIcon}>👁️</Text>
@@ -269,7 +264,6 @@ const InvestorFeed = ({ navigation }) => {
 
                 <View style={styles.divider} />
 
-                {/* Action Buttons - Modern Social Media Style */}
                 <View style={styles.footer}>
                   <TouchableOpacity
                     style={styles.actionBtn}
@@ -303,7 +297,6 @@ const InvestorFeed = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Owner Actions - Only shown if user owns the post */}
                 {(() => {
                   const ownerId =
                     typeof p.investor === "string"
@@ -352,7 +345,7 @@ const InvestorFeed = ({ navigation }) => {
   );
 };
 
-// --- Enhanced Modern UI Styles ---
+// Styles remain the same...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
