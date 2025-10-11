@@ -30,7 +30,7 @@ const ProfileScreens = () => {
         const token = await AsyncStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch("http://192.168.8.101:5000/api/auth/me", {
+        const res = await fetch("http://192.168.1.100:5000/api/auth/me", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -61,7 +61,7 @@ const ProfileScreens = () => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const res = await fetch("http://192.168.8.101:5000/api/auth/update", {
+      const res = await fetch("http://192.168.1.100:5000/api/auth/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -85,21 +85,17 @@ const ProfileScreens = () => {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            await AsyncStorage.removeItem("token");
-            navigation.replace("Login");
-          },
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await AsyncStorage.removeItem("token");
+          navigation.replace("Login");
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -118,12 +114,14 @@ const ProfileScreens = () => {
         <View style={styles.coverPhotoContainer}>
           <Image
             source={
-              coverPhoto ? { uri: coverPhoto } : require("../../assets/logo.png")
+              coverPhoto
+                ? { uri: coverPhoto }
+                : require("../../assets/logo.png")
             }
             style={styles.coverPhoto}
           />
           <View style={styles.coverOverlay} />
-          
+
           {/* Edit Cover Button */}
           {editMode && (
             <TouchableOpacity style={styles.editCoverBtn}>
@@ -232,7 +230,7 @@ const ProfileScreens = () => {
         {/* Account Details Section */}
         <View style={styles.detailsSection}>
           <Text style={styles.sectionTitle}>Account Information</Text>
-          
+
           <View style={styles.detailCard}>
             <View style={styles.detailRow}>
               <View style={styles.detailIconContainer}>
@@ -250,7 +248,9 @@ const ProfileScreens = () => {
                     keyboardType="email-address"
                   />
                 ) : (
-                  <Text style={styles.detailValue}>{email || "Not provided"}</Text>
+                  <Text style={styles.detailValue}>
+                    {email || "Not provided"}
+                  </Text>
                 )}
               </View>
             </View>
@@ -312,10 +312,7 @@ const ProfileScreens = () => {
 
         {/* Logout Button */}
         <View style={styles.logoutSection}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutIcon}>🚪</Text>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -328,9 +325,9 @@ const ProfileScreens = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#F0F2F5" 
+  container: {
+    flex: 1,
+    backgroundColor: "#F0F2F5",
   },
   loadingContainer: {
     flex: 1,
@@ -343,17 +340,17 @@ const styles = StyleSheet.create({
     color: "#65676B",
     fontWeight: "500",
   },
-  
+
   // Cover Photo Styles
   coverPhotoContainer: {
     height: 200,
     backgroundColor: "#6750A4",
     position: "relative",
   },
-  coverPhoto: { 
-    width: "100%", 
-    height: 200, 
-    resizeMode: "cover" 
+  coverPhoto: {
+    width: "100%",
+    height: 200,
+    resizeMode: "cover",
   },
   coverOverlay: {
     position: "absolute",
@@ -392,9 +389,9 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: 16,
   },
-  profilePhoto: { 
-    width: 120, 
-    height: 120, 
+  profilePhoto: {
+    width: 120,
+    height: 120,
     borderRadius: 60,
     borderWidth: 5,
     borderColor: "#FFFFFF",
