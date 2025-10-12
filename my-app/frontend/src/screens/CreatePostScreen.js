@@ -81,6 +81,14 @@ const CreatePostScreen = () => {
   const [expectedROI, setExpectedROI] = useState("");
   const [interestLevel, setInterestLevel] = useState("");
   const [investorDescription, setInvestorDescription] = useState("");
+  
+  // Franchise State
+  const [franchiseName, setFranchiseName] = useState("");
+  const [franchiseDescription, setFranchiseDescription] = useState("");
+  const [franchiseLocation, setFranchiseLocation] = useState("");
+  const [franchiseCategory, setFranchiseCategory] = useState("");
+  const [franchiseContact, setFranchiseContact] = useState("");
+  const [franchiseImage, setFranchiseImage] = useState(null);
 
   const industries = [
     "Technology",
@@ -107,6 +115,16 @@ const CreatePostScreen = () => {
     "Insurance",
     "Legal",
     "Sports & Recreation",
+  ];
+  
+  // Franchise Categories
+  const franchiseCategories = [
+    "Food", 
+    "Retail", 
+    "Service", 
+    "Education", 
+    "Healthcare", 
+    "Other"
   ];
 
   useEffect(() => {
@@ -162,6 +180,44 @@ const CreatePostScreen = () => {
       setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
     }
   };
+  
+  // Pick Franchise Image
+  const pickFranchiseImage = async () => {
+    const permissionResult = 
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permission required", "Please allow photo library access.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      console.log("Selected franchise image:", result.assets[0]);
+      
+      // Get image info
+      const selectedImage = result.assets[0];
+      
+      // Check file size and format
+      const fileSize = selectedImage.fileSize; // in bytes
+      const maxSize = 10 * 1024 * 1024; // 10 MB
+      
+      if (fileSize > maxSize) {
+        Alert.alert(
+          "Image too large", 
+          "Please select an image smaller than 10MB"
+        );
+        return;
+      }
+      
+      setFranchiseImage(selectedImage);
+    }
+  };
 
   // Entrepreneur Post Handler
   const handlePost = async () => {
@@ -204,7 +260,7 @@ const CreatePostScreen = () => {
       }
 
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://172.27.96.1:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -252,7 +308,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://192.168.8.101:5000/api/mentors", {
+      const res = await fetch("http://172.27.96.1:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -317,7 +373,7 @@ const CreatePostScreen = () => {
         description: investorDescription,
       };
 
-      const response = await fetch("http://192.168.8.101:5000/api/proposals", {
+      const response = await fetch("http://172.27.96.1:5000/api/proposals", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -340,6 +396,137 @@ const CreatePostScreen = () => {
       }
     } catch (err) {
       Alert.alert("Error", err.message);
+    }
+  };
+  
+  // Franchise Submit Handler
+  const handleFranchiseSubmit = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Please log in first");
+        return;
+      }
+      
+      // Validate fields
+      if (!franchiseName || !franchiseDescription || !franchiseLocation || !franchiseCategory || !franchiseContact) {
+        Alert.alert("Error", "Please fill all required fields");
+        return;
+      }
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append("name", franchiseName);
+      formData.append("description", franchiseDescription);
+      formData.append("location", franchiseLocation);
+      formData.append("category", franchiseCategory);
+      formData.append("contact", franchiseContact);
+      
+      // Handle image upload: try Cloudinary first to get a URL; fallback to multipart attach
+      if (franchiseImage) {
+        const uri = franchiseImage.uri;
+        let uploadedUrl = null;
+        try {
+          console.log("Uploading franchise image to Cloudinary from frontend...");
+          uploadedUrl = await uploadToCloudinary(uri);
+          console.log("Cloudinary upload success. URL:", uploadedUrl);
+        } catch (e) {
+          console.warn("Cloudinary frontend upload failed, will send file via multipart to backend:", e?.message || e);
+        }
+
+        if (uploadedUrl) {
+          // Send URL so backend can store it reliably
+          formData.append("imageUrl", uploadedUrl);
+        } else {
+          try {
+            console.log("Preparing to attach image file to FormData", franchiseImage);
+            // Derive a safe mime type and extension
+            let derivedExt = '';
+            if (uri && uri.includes('.')) {
+              derivedExt = uri.substring(uri.lastIndexOf('.') + 1).toLowerCase();
+            }
+            const mimeFromPicker = franchiseImage.mimeType || '';
+            let ext = (mimeFromPicker.split('/')[1] || derivedExt || 'jpeg');
+            if (ext === 'jpg') ext = 'jpeg';
+            const mimeType = mimeFromPicker || `image/${ext}`;
+            const fileName = `franchise_${Date.now()}.${ext === 'jpeg' ? 'jpg' : ext}`;
+
+            // Add to form data (let RN set proper Content-Type with boundary)
+            formData.append("image", {
+              uri,
+              name: fileName,
+              type: mimeType,
+            });
+            console.log(`Image appended to form data: ${fileName} (${mimeType})`);
+          } catch (imageError) {
+            console.error("Error preparing image:", imageError);
+            Alert.alert(
+              "Image Error", 
+              "There was a problem with the image. Try uploading a different one or continue without an image."
+            );
+            // Continue without image instead of returning
+          }
+        }
+      }
+      
+      console.log("Submitting franchise form...");
+      Alert.alert("Submitting", "Sending your franchise information...");
+      
+      // Make API request
+      const response = await fetch("http://172.27.96.1:5000/api/franchise/create", {
+        method: "POST",
+        headers: {
+          // IMPORTANT: Do NOT set Content-Type manually for multipart/form-data.
+          // Let React Native set the correct boundary.
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      
+      console.log("Response status:", response.status);
+      // Log a subset of headers for debugging
+      try {
+        const headerDump = {};
+        response.headers && response.headers.forEach && response.headers.forEach((v, k) => headerDump[k] = v);
+        console.log("Response headers:", headerDump);
+      } catch {}
+      const responseText = await response.text();
+      console.log("Raw response text:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Error parsing response:", e);
+        Alert.alert("Error", "Invalid response from server");
+        return;
+      }
+      
+      if (response.ok && data && data.success) {
+        Alert.alert("Success", "Franchise created successfully!");
+        // Reset form
+        setFranchiseName("");
+        setFranchiseDescription("");
+        setFranchiseLocation("");
+        setFranchiseCategory("");
+        setFranchiseContact("");
+        setFranchiseImage(null);
+        
+        navigation.navigate("HomeTabs");
+      } else {
+        console.error("API Error Response:", data);
+        const baseMsg = data && (data.message || data.msg);
+        let detail = baseMsg || `Failed to create franchise (status ${response.status}).`;
+        if (response.status === 401) detail = "Authentication failed. Please log in again.";
+        if (response.status === 400 && baseMsg) detail = baseMsg;
+        Alert.alert("Error", detail);
+      }
+    } catch (err) {
+      console.error("Franchise Submit Error:", err);
+      Alert.alert(
+        "Error", 
+        "An error occurred while creating the franchise. Please check your internet connection and try again."
+      );
     }
   };
 
@@ -744,11 +931,96 @@ const CreatePostScreen = () => {
         )}
 
         {activeForm === "franchise" && (
-          <View style={styles.placeholderForm}>
-            <Text style={styles.placeholderText}>
-              Franchise Owner Form (to be implemented)
-            </Text>
-          </View>
+          <>
+            <Text style={styles.label}>Franchise Name</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your franchise name"
+              value={franchiseName}
+              onChangeText={setFranchiseName}
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 100 }]}
+              placeholder="Describe your franchise opportunity"
+              multiline
+              value={franchiseDescription}
+              onChangeText={setFranchiseDescription}
+            />
+
+            <Text style={styles.label}>Location</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter franchise location"
+              value={franchiseLocation}
+              onChangeText={setFranchiseLocation}
+            />
+
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={franchiseCategory}
+                onValueChange={(itemValue) => setFranchiseCategory(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Category" value="" />
+                {franchiseCategories.map((category) => (
+                  <Picker.Item key={category} label={category} value={category} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Contact Information</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter contact information (phone, email)"
+              value={franchiseContact}
+              onChangeText={setFranchiseContact}
+            />
+
+            <TouchableOpacity onPress={pickFranchiseImage} style={styles.uploadButton}>
+              <Text style={styles.uploadButtonText}>Upload Franchise Image</Text>
+            </TouchableOpacity>
+
+            {franchiseImage && (
+              <View style={{ marginTop: 15, alignItems: 'center' }}>
+                <Image 
+                  source={{ uri: franchiseImage.uri }} 
+                  style={{ width: 200, height: 200, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' }} 
+                />
+                <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                  <Text style={{ marginBottom: 5, color: '#666' }}>
+                    {(franchiseImage.fileSize / (1024 * 1024)).toFixed(2)} MB
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={{ marginTop: 10, padding: 8, backgroundColor: '#f44336', borderRadius: 4 }}
+                  onPress={() => setFranchiseImage(null)}
+                >
+                  <Text style={{ color: 'white' }}>Remove Image</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.postButton} onPress={handleFranchiseSubmit}>
+              <Text style={styles.postButtonText}>Create Franchise</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setFranchiseName("");
+                setFranchiseDescription("");
+                setFranchiseLocation("");
+                setFranchiseCategory("");
+                setFranchiseContact("");
+                setFranchiseImage(null);
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

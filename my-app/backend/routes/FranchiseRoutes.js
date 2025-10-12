@@ -1,7 +1,18 @@
 const express = require("express");
 const router = express.Router();
-const { storage } = require("../config/cloudinary");
+const cloudinary = require("../config/cloudinary");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const multer = require("multer");
+// Configure Cloudinary storage specifically for franchises
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "franchises", // Store franchise images in their own folder
+    allowed_formats: ["jpg", "png", "jpeg"],
+    transformation: [{ width: 1000, height: 1000, crop: "limit" }], // Optimize image size
+  },
+});
+
 const upload = multer({ storage });
 const authMiddleware = require("../middlewares/authMiddleware"); // ✅ import middleware
 const franchiseOwnerMiddleware = require("../middlewares/franchiseOwnerMiddleware"); // Owner check middleware
@@ -12,7 +23,7 @@ const {
   getFranchiseById,
   updateFranchise,
   deleteFranchise,
-} = require("../controllers/franchiseController");
+} = require("../controllers/FranchiseController");
 
 // Routes
 

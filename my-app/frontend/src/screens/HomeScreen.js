@@ -25,9 +25,6 @@ import InvestorFeed from "../screens/InvestorFeed";
 
 const { width } = Dimensions.get("window");
 
-const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
-const CLOUDINARY_API_KEY = "972712514358626";
-const CLOUDINARY_API_SECRET = "AhsSmC4D7qFlWQ6ba2l4CKF_9JE";
 
 const SECTORS = [
   "Travel",
@@ -85,7 +82,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}`,
+        `http://172.27.96.1:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -130,6 +127,8 @@ const HomeScreen = () => {
   const [qrPostId, setQrPostId] = useState(null);
   const [activeFeed, setActiveFeed] = useState("entrepreneur");
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [franchises, setFranchises] = useState([]);
+  const [newFranchiseCount, setNewFranchiseCount] = useState(0);
 
   const navigation = useNavigation();
 
@@ -163,7 +162,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${editPostId}`,
+        `http://172.27.96.1:5000/api/entrepreneur/posts/${editPostId}`,
         {
           method: "PUT",
           headers: {
@@ -224,7 +223,7 @@ const HomeScreen = () => {
       const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
 
       const downloadResumable = FileSystem.createDownloadResumable(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        `http://172.27.96.1:5000/api/entrepreneur/posts/${postId}/download-pdf`,
         fileUri,
         {
           headers: {
@@ -261,7 +260,7 @@ const HomeScreen = () => {
 
     try {
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://172.27.96.1:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -283,15 +282,80 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://192.168.8.101:5000/api/mentors")
+    fetch("http://172.27.96.1:5000/api/mentors")
       .then((res) => res.json())
       .then((data) => setMentors(data))
       .catch(() => setMentors([]));
+      
+    // Fetch franchises
+    console.log("Initial franchise API call from useEffect");
+    loadFranchises();
   }, []);
+
+  const loadFranchises = async () => {
+    try {
+      console.log("Fetching franchises...");
+      const response = await fetch("http://172.27.96.1:5000/api/franchise/all");
+      console.log("Franchise response status:", response.status);
+      
+      // Log response headers
+      const headers = {};
+      response.headers.forEach((value, name) => {
+        headers[name] = value;
+      });
+      console.log("Response headers:", headers);
+      
+      const responseText = await response.text();
+      console.log("Raw response text:", responseText);
+      
+      // Try to parse the response
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log("Parsed franchise data:", data);
+      } catch (parseError) {
+        console.error("Error parsing franchise response:", parseError);
+        Alert.alert("Debug Info", `Could not parse response: ${responseText.substring(0, 100)}...`);
+        setFranchises([]);
+        return;
+      }
+      
+      if (data.success && Array.isArray(data.franchises)) {
+        console.log(`Retrieved ${data.franchises.length} franchises`);
+        
+        // Count new franchises
+        const newFranchises = data.franchises.filter(franchise => franchise.isNew);
+        console.log(`${newFranchises.length} new franchises found`);
+        
+        // Debug check each franchise object
+        data.franchises.forEach((franchise, index) => {
+          console.log(`Franchise #${index + 1}:`, 
+            `ID: ${franchise._id}`, 
+            `Name: ${franchise.name}`,
+            `Is New: ${franchise.isNew}`,
+            `Has image: ${!!franchise.image}`);
+        });
+        
+        // Set franchises and count of new ones
+        setFranchises(data.franchises);
+        setNewFranchiseCount(newFranchises.length);
+      } else {
+        console.log("No franchises found or invalid format:", data);
+        setFranchises([]);
+        setNewFranchiseCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching franchises:", error);
+      Alert.alert("Network Error", `Failed to load franchises: ${error.message}`);
+      setFranchises([]);
+      setNewFranchiseCount(0);
+    }
+  };
 
   useFocusEffect(
     React.useCallback(() => {
       loadUserAndPosts();
+      loadFranchises();
     }, [])
   );
 
@@ -364,6 +428,23 @@ const HomeScreen = () => {
               ]}
             >
               🎓 Mentors
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.formSwitchBtn,
+              activeFeed === "franchise" && styles.formSwitchBtnActive,
+            ]}
+            onPress={() => setActiveFeed("franchise")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.formSwitchText,
+                activeFeed === "franchise" && styles.formSwitchTextActive,
+              ]}
+            >
+              🏪 Franchises
             </Text>
           </TouchableOpacity>
         </View>
@@ -567,6 +648,226 @@ const HomeScreen = () => {
               </View>
             )}
           </View>
+        ) : activeFeed === "franchise" ? (
+          <View style={styles.feedSection}>
+            <View style={styles.sectionHeader}>
+              <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 5}}>
+                <Text style={styles.sectionTitle}>Franchise Opportunities</Text>
+                <View style={styles.franchiseCountBadge}>
+                  <Text style={styles.franchiseCountText}>{franchises.length}</Text>
+                </View>
+              </View>
+              <Text style={styles.sectionSubtitle}>
+                Explore business franchise options
+                {newFranchiseCount > 0 && ` • ${newFranchiseCount} new ${newFranchiseCount === 1 ? 'listing' : 'listings'}`}
+              </Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10}}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.newBadge, {marginLeft: 0}]}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                  <Text style={{fontSize: 12, color: '#666', marginLeft: 5}}>Posted within 48 hours</Text>
+                </View>
+              </View>
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap'}}>
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={() => {
+                    loadFranchises();
+                  }}
+                >
+                  <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.refreshButton, {backgroundColor: '#9C27B0'}]}
+                  onPress={() => {
+                    // Sort franchises by newest first
+                    const sorted = [...franchises].sort((a, b) => {
+                      return new Date(b.createdAt) - new Date(a.createdAt);
+                    });
+                    setFranchises(sorted);
+                  }}
+                >
+                  <Text style={styles.refreshButtonText}>⏱️ Latest</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.refreshButton, {backgroundColor: '#FF9800'}]}
+                  onPress={() => {
+                    // Show new franchises first, then others
+                    const sorted = [...franchises].sort((a, b) => {
+                      if (a.isNew && !b.isNew) return -1;
+                      if (!a.isNew && b.isNew) return 1;
+                      return 0;
+                    });
+                    setFranchises(sorted);
+                  }}
+                >
+                  <Text style={styles.refreshButtonText}>⭐ New First</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {franchises.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateIcon}>🏪</Text>
+                <Text style={styles.emptyStateText}>No franchise listings available</Text>
+                <Text style={styles.emptyStateSubtext}>Be the first to list your franchise!</Text>
+              </View>
+            ) : (
+              <View>
+                {franchises.map((franchise, index) => {
+                  // Safeguard against invalid data
+                  if (!franchise || typeof franchise !== 'object') {
+                    console.error('Invalid franchise data:', franchise);
+                    return null;
+                  }
+                  
+                  return (
+                    <View 
+                      key={franchise._id || `franchise-${index}`} 
+                      style={[
+                        styles.feedCardProfessional,
+                        franchise.isNew && styles.newFranchiseCard
+                      ]}
+                    >
+                      {franchise.isNew && (
+                        <View style={styles.newFranchiseRibbon}>
+                          <Text style={styles.newFranchiseRibbonText}>NEW LISTING</Text>
+                        </View>
+                      )}
+                      <View style={styles.feedCardTopRowProfessional}>
+                        <View style={styles.profilePicContainer}>
+                          <Image
+                            source={{
+                              uri:
+                                franchise.createdBy?.profilePicture ||
+                                "https://ui-avatars.com/api/?name=" +
+                                  (franchise.createdBy?.name || "F") +
+                                  "&background=E57373&color=fff",
+                            }}
+                            style={styles.profilePic}
+                          />
+                          <View style={styles.profileOnlineIndicator} />
+                        </View>
+                        <View style={styles.feedCardInfo}>
+                          <Text style={styles.feedAuthorNameProfessional}>
+                            {franchise.createdBy?.name || "Unknown"}
+                          </Text>
+                          <Text style={styles.feedAuthorEmail}>
+                            {franchise.createdBy?.email || ""}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.feedHeaderProfessional}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                          <Text style={styles.feedTitleProfessional}>
+                            {franchise.name}
+                          </Text>
+                          {franchise.isNew && (
+                            <View style={styles.newBadge}>
+                              <Text style={styles.newBadgeText}>NEW</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={[styles.industryBadge, styles.franchiseBadge]}>
+                          <Text style={styles.feedIndustry}>{franchise.category}</Text>
+                        </View>
+                        <Text style={styles.franchiseLocation}>
+                          📍 {franchise.location || 'Location not specified'}
+                        </Text>
+                      </View>
+
+                      {franchise.image && franchise.image !== "" && (
+                        <View style={styles.franchiseImageContainer}>
+                          <Image
+                            source={{ uri: franchise.image }}
+                            style={styles.franchiseImage}
+                            resizeMode="cover"
+                            onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+                          />
+                        </View>
+                      )}
+
+                      <View style={styles.feedDescriptionContainer}>
+                        <Text style={styles.feedDescriptionProfessional}>
+                          {franchise.description || 'No description provided'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.franchiseContactContainer}>
+                        <Text style={styles.franchiseContactLabel}>Contact:</Text>
+                        <Text style={styles.franchiseContactInfo}>
+                          {typeof franchise.contact === 'string' ? 
+                            franchise.contact : 
+                            JSON.stringify(franchise.contact) || 'Contact information not available'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.franchiseDateContainer}>
+                        <Text style={styles.franchiseDate}>
+                          Posted: {franchise.formattedDate || (franchise.createdAt ? new Date(franchise.createdAt).toLocaleDateString() : 'Recently')}
+                        </Text>
+                      </View>
+
+                      <View style={styles.feedcardBottomProfessional}>
+                        {franchise.isNew ? (
+                          <TouchableOpacity 
+                            style={[styles.franchiseScheduleButton, styles.newFranchiseButton]}
+                            onPress={() => {
+                              Alert.alert(
+                                "Contact " + (franchise.createdBy?.name || "Owner"),
+                                `Would you like to contact the owner about "${franchise.name}"?`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  { 
+                                    text: "Contact Now", 
+                                    onPress: () => {
+                                      // You can implement the actual contact logic here
+                                      Alert.alert("Success", "Contact request sent! You will be notified when they respond.");
+                                    }
+                                  }
+                                ]
+                              );
+                            }}
+                          >
+                            <Text style={styles.franchiseScheduleButtonText}>
+                              🔥 Request Information Now
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity 
+                            style={styles.franchiseScheduleButton}
+                            onPress={() => {
+                              Alert.alert(
+                                "Schedule Meeting",
+                                `Would you like to schedule a meeting about "${franchise.name}"?`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  { 
+                                    text: "Schedule", 
+                                    onPress: () => {
+                                      // You can implement the actual scheduling logic here
+                                      Alert.alert("Success", "Meeting request sent!");
+                                    }
+                                  }
+                                ]
+                              );
+                            }}
+                          >
+                            <Text style={styles.franchiseScheduleButtonText}>
+                              🗓️ Schedule Meeting
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         ) : (
           <InvestorFeed />
         )}
@@ -665,7 +966,7 @@ const HomeScreen = () => {
               {qrPostId && (
                 <View style={styles.qrCodeContainer}>
                   <QRCode
-                    value={`http://192.168.8.101:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                    value={`http://172.27.96.1:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                     size={220}
                     backgroundColor="white"
                     color="#6750A4"
@@ -1531,6 +1832,176 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "800",
     fontSize: 16,
+  },
+  franchiseLocation: {
+    color: "#555",
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: 8,
+  },
+  franchiseBadge: {
+    backgroundColor: "#FFECB3",
+    borderColor: "rgba(255, 152, 0, 0.3)",
+  },
+  franchiseImageContainer: {
+    marginVertical: 16,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  franchiseImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 16,
+  },
+  franchiseContactContainer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  franchiseContactLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#555",
+    marginBottom: 4,
+  },
+  franchiseContactInfo: {
+    fontSize: 15,
+    color: "#333",
+  },
+  franchiseScheduleButton: {
+    backgroundColor: "#E57373",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    shadowColor: "#E57373",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  franchiseScheduleButtonText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  refreshButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  newBadge: {
+    backgroundColor: '#FF5722',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  newBadgeText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  franchiseDateContainer: {
+    borderTopWidth: 1, 
+    borderColor: '#eee', 
+    paddingTop: 8, 
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  franchiseDate: {
+    fontSize: 12, 
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  franchiseCountBadge: {
+    backgroundColor: '#E57373',
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  franchiseCountText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  newFranchiseCard: {
+    borderColor: '#FF5722',
+    borderWidth: 2,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  newFranchiseRibbon: {
+    position: 'absolute',
+    top: 15,
+    right: -35,
+    backgroundColor: '#FF5722',
+    paddingVertical: 5,
+    paddingHorizontal: 40,
+    transform: [{ rotate: '45deg' }],
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  newFranchiseRibbonText: {
+    color: 'white',
+    fontWeight: '900',
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  newFranchiseButton: {
+    backgroundColor: '#FF5722',
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
 
