@@ -471,17 +471,43 @@ const CreatePostScreen = () => {
       
       console.log("Submitting franchise form...");
       Alert.alert("Submitting", "Sending your franchise information...");
-      
-      // Make API request
-      const response = await fetch("http://172.27.96.1:5000/api/franchise/create", {
-        method: "POST",
-        headers: {
-          // IMPORTANT: Do NOT set Content-Type manually for multipart/form-data.
-          // Let React Native set the correct boundary.
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+
+      // Franchise-specific API base resolution with fallbacks (do not change other flows)
+      const candidateBases = [
+        "http://172.27.96.1:5000", // existing LAN IP
+        "http://10.0.2.2:5000",    // Android emulator to host loopback
+        "http://localhost:5000",   // Web/local
+      ];
+
+      // Try endpoints sequentially until one succeeds
+      let response;
+      let lastError;
+      for (const base of candidateBases) {
+        try {
+          console.log(`Trying franchise create at: ${base}`);
+          response = await fetch(`${base}/api/franchise/create`, {
+            method: "POST",
+            headers: {
+              // Do NOT set Content-Type manually for multipart/form-data.
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+          if (response && response.ok) {
+            break; // success path
+          }
+          // If non-2xx, capture text for diagnostics and continue trying next base
+          const errText = await response.text();
+          lastError = new Error(`HTTP ${response.status} at ${base}: ${errText}`);
+          console.warn("Franchise create failed on base", base, lastError.message);
+        } catch (e) {
+          lastError = e;
+          console.warn("Network error on", base, e?.message || String(e));
+        }
+      }
+      if (!response) {
+        throw lastError || new Error("No response from any API base");
+      }
       
       console.log("Response status:", response.status);
       // Log a subset of headers for debugging
