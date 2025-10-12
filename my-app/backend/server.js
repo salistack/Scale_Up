@@ -9,6 +9,8 @@ const authRoutes = require("./routes/authRoutes");
 const investorProposalRoutes = require("./routes/investorProposalRoutes");
 const entrepreneurPostRoutes = require("./routes/entrepreneurPostRoutes");
 const franchiseRoutes = require("./routes/FranchiseRoutes");
+const entrepreneurRoutes = require("./routes/entrepreneurRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 const mentorRoutes = require("./routes/mentorRoutes");
 
@@ -22,6 +24,8 @@ app.use("/api/proposals", investorProposalRoutes);
 app.use("/api/franchise", franchiseRoutes);
 app.use("/api/entrepreneur/posts", entrepreneurPostRoutes);
 app.use("/api/mentors", mentorRoutes);
+app.use("/api/entrepreneur", entrepreneurRoutes);
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

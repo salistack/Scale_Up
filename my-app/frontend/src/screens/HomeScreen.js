@@ -115,6 +115,12 @@ const HomeScreen = () => {
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [qrVisible, setQrVisible] = useState(false);
   const [qrPostId, setQrPostId] = useState(null);
+  
+  // Add chat states
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const navigation = useNavigation();
 
@@ -222,6 +228,73 @@ const HomeScreen = () => {
       loadUserAndPosts();
     }, [])
   );
+
+  // Add chat functions
+  const openChat = () => {
+    setChatVisible(true);
+    if (chatMessages.length === 0) {
+      setChatMessages([
+        {
+          role: "assistant",
+          content: "Hello! I'm your AI mentor assistant. I can help guide you with business strategies, marketing, funding, and more. What would you like to know?",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    }
+  };
+
+  const closeChat = () => {
+    setChatVisible(false);
+  };
+
+  const sendMessage = async () => {
+    if (!chatInput.trim() || isSending) return;
+
+    const userMessage = {
+      role: "user",
+      content: chatInput.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    setChatMessages((prev) => [...prev, userMessage]);
+    setChatInput("");
+    setIsSending(true);
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await fetch("http://10.68.102.202:5000/api/chat/mentor", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: userMessage.content,
+          history: chatMessages,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.response,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } else {
+        Alert.alert("Error", data.error || "Failed to get response");
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      Alert.alert("Error", "Failed to connect to mentor assistant");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -571,6 +644,103 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Floating Chat Button */}
+      <TouchableOpacity
+        style={styles.floatingChatButton}
+        onPress={openChat}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.chatIcon}>💬</Text>
+      </TouchableOpacity>
+
+      {/* Chat Modal */}
+      <Modal
+        visible={chatVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeChat}
+      >
+        <View style={styles.chatModalContainer}>
+          <View style={styles.chatModal}>
+            {/* Chat Header */}
+            <View style={styles.chatHeader}>
+              <View style={styles.chatHeaderLeft}>
+                <View style={styles.chatAvatarContainer}>
+                  <Text style={styles.chatAvatarText}>🤖</Text>
+                </View>
+                <View>
+                  <Text style={styles.chatHeaderTitle}>AI Mentor Assistant</Text>
+                  <Text style={styles.chatHeaderSubtitle}>Business Guidance</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={closeChat} style={styles.chatCloseButton}>
+                <Text style={styles.chatCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Chat Messages */}
+            <ScrollView
+              style={styles.chatMessagesContainer}
+              contentContainerStyle={styles.chatMessagesContent}
+              ref={(ref) => {
+                if (ref) ref.scrollToEnd({ animated: true });
+              }}
+            >
+              {chatMessages.map((msg, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.chatMessageBubble,
+                    msg.role === "user"
+                      ? styles.chatMessageUser
+                      : styles.chatMessageAssistant,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chatMessageText,
+                      msg.role === "user"
+                        ? styles.chatMessageTextUser
+                        : styles.chatMessageTextAssistant,
+                    ]}
+                  >
+                    {msg.content}
+                  </Text>
+                </View>
+              ))}
+              {isSending && (
+                <View style={[styles.chatMessageBubble, styles.chatMessageAssistant]}>
+                  <Text style={styles.chatMessageTextAssistant}>Thinking...</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Chat Input */}
+            <View style={styles.chatInputContainer}>
+              <TextInput
+                style={styles.chatInput}
+                placeholder="Ask your business question..."
+                placeholderTextColor="#999"
+                value={chatInput}
+                onChangeText={setChatInput}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                onPress={sendMessage}
+                style={[
+                  styles.chatSendButton,
+                  (!chatInput.trim() || isSending) && styles.chatSendButtonDisabled,
+                ]}
+                disabled={!chatInput.trim() || isSending}
+              >
+                <Text style={styles.chatSendButtonText}>➤</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -956,6 +1126,160 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+
+  // Chat styles
+  floatingChatButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#6750A4",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  chatIcon: {
+    fontSize: 28,
+  },
+  chatModalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  chatModal: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: "85%",
+    overflow: "hidden",
+  },
+  chatHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#6750A4",
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chatAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  chatAvatarText: {
+    fontSize: 20,
+  },
+  chatHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  chatHeaderSubtitle: {
+    fontSize: 12,
+    color: "#e0e0e0",
+    marginTop: 2,
+  },
+  chatCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chatCloseText: {
+    fontSize: 20,
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  chatMessagesContainer: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  chatMessagesContent: {
+    padding: 16,
+    paddingBottom: 20,
+  },
+  chatMessageBubble: {
+    maxWidth: "80%",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  chatMessageUser: {
+    alignSelf: "flex-end",
+    backgroundColor: "#6750A4",
+    borderBottomRightRadius: 4,
+  },
+  chatMessageAssistant: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  chatMessageText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  chatMessageTextUser: {
+    color: "#fff",
+  },
+  chatMessageTextAssistant: {
+    color: "#333",
+  },
+  chatInputContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    backgroundColor: "#fff",
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    maxHeight: 100,
+    marginRight: 8,
+  },
+  chatSendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#6750A4",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chatSendButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
+  chatSendButtonText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
   },
 });
 
