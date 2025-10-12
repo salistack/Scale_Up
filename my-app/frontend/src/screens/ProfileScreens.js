@@ -55,7 +55,7 @@ const ProfileScreens = () => {
         const token = await AsyncStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch("http://10.68.102.202:5000/api/auth/me", {
+        const res = await fetch("http://192.168.8.101:5000/api/auth/me", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -110,7 +110,7 @@ const ProfileScreens = () => {
       
       console.log("Making DELETE request...");
       
-      const deleteUrl = `http://10.68.102.202:5000/api/mentors/${postId}`;
+      const deleteUrl = `http://192.168.8.101:5000/api/mentors/${postId}`;
       console.log("DELETE URL:", deleteUrl);
       
       const response = await fetch(deleteUrl, {
@@ -165,7 +165,7 @@ const ProfileScreens = () => {
 
       // Generate random string to prevent caching
       const cacheBuster = Math.random().toString(36).substring(2);
-      const url = `http://10.68.102.202:5000/api/mentors?nocache=${Date.now()}&rand=${cacheBuster}`;
+      const url = `http://192.168.8.101:5000/api/mentors?nocache=${Date.now()}&rand=${cacheBuster}`;
       
       console.log(`Fetching posts from: ${url}`);
       
@@ -256,7 +256,7 @@ const ProfileScreens = () => {
         experienceYears: expYears,
       };
 
-      const res = await fetch(`http://10.68.102.202:5000/api/mentors/${selectedPost._id}`, {
+      const res = await fetch(`http://192.168.8.101:5000/api/mentors/${selectedPost._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -292,7 +292,7 @@ const ProfileScreens = () => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const res = await fetch("http://10.68.102.202:5000/api/auth/update", {
+      const res = await fetch("http://192.168.8.101:5000/api/auth/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

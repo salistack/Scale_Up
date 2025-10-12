@@ -33,7 +33,7 @@ const InvestorFeed = () => {
           }
         }
 
-        const res = await fetch("http://10.68.102.202:5000/api/proposals", {
+        const res = await fetch("http://192.168.8.101:5000/api/proposals", {
           headers: { "Content-Type": "application/json" },
         });
         if (!res.ok) {
@@ -69,7 +69,7 @@ const InvestorFeed = () => {
         const hostFromPackager = debuggerHost.split(":")[0];
         if (hostFromPackager) hosts.push(hostFromPackager);
       }
-      hosts.push("10.68.102.202", "localhost", "127.0.0.1", "10.0.2.2");
+      hosts.push("192.168.8.101", "localhost", "127.0.0.1", "10.0.2.2");
 
       let lastErr = null;
       let ok = false;
@@ -124,7 +124,7 @@ const InvestorFeed = () => {
               }
 
               const res = await fetch(
-                `http://10.68.102.202:5000/api/proposals/${id}`,
+                `http://192.168.8.101:5000/api/proposals/${id}`,
                 {
                   method: "DELETE",
                   headers: {
