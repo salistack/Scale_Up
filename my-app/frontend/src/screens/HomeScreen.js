@@ -236,7 +236,7 @@ const HomeScreen = () => {
       setChatMessages([
         {
           role: "assistant",
-          content: "Hello! I'm your AI mentor assistant. I can help guide you with business strategies, marketing, funding, and more. What would you like to know?",
+          content: "Hello! I'm your AI business mentor. I can help you with:\n\n• Business strategy & planning\n• Marketing & customer acquisition\n• Fundraising & pitch preparation\n• Product development\n• Team building\n• Financial management\n\nWhat would you like to discuss today?",
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -262,6 +262,9 @@ const HomeScreen = () => {
 
     try {
       const token = await AsyncStorage.getItem("token");
+      
+      console.log('Sending message to mentor API...');
+      
       const response = await fetch("http://10.68.102.202:5000/api/chat/mentor", {
         method: "POST",
         headers: {
@@ -275,22 +278,31 @@ const HomeScreen = () => {
       });
 
       const data = await response.json();
+      console.log('Response status:', response.status);
 
-      if (response.ok) {
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.response,
-            timestamp: new Date().toISOString(),
-          },
-        ]);
-      } else {
-        Alert.alert("Error", data.error || "Failed to get response");
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
       }
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     } catch (error) {
       console.error("Chat error:", error);
-      Alert.alert("Error", "Failed to connect to mentor assistant");
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      Alert.alert("Connection Error", error.message || "Failed to get response from mentor");
     } finally {
       setIsSending(false);
     }
