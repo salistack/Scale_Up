@@ -125,3 +125,131 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 };
+
+const { OAuth2Client } = require('google-auth-library');
+
+// OAuth: Google sign-in - handle both tokens and authorization codes
+exports.oauthGoogle = async (req, res) => {
+  try {
+    const { idToken, accessToken, authCode, redirectUri } = req.body || {};
+    
+    console.log("OAuth request received:", { 
+      hasIdToken: !!idToken, 
+      hasAccessToken: !!accessToken, 
+      hasAuthCode: !!authCode, 
+      redirectUri 
+    });
+    
+    if (!idToken && !accessToken && !authCode) {
+      return res.status(400).json({ msg: "Missing idToken, accessToken, or authCode" });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    
+    if (!clientId) {
+      return res.status(500).json({ msg: "Server missing GOOGLE_CLIENT_ID" });
+    }
+
+    const client = new OAuth2Client(clientId, clientSecret, redirectUri);
+    let payload;
+
+    try {
+      if (authCode) {
+        // Exchange authorization code for tokens (for web application flow)
+        console.log("Exchanging auth code for tokens...");
+        const { tokens } = await client.getToken(authCode);
+        console.log("Received tokens:", { ...tokens, access_token: '***', id_token: '***' });
+        
+        if (tokens.id_token) {
+          // Verify the ID token we just received
+          const ticket = await client.verifyIdToken({
+            idToken: tokens.id_token,
+            audience: clientId,
+          });
+          payload = ticket.getPayload();
+        } else if (tokens.access_token) {
+          // Use access token to get user info
+          const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${tokens.access_token}`);
+          if (!response.ok) {
+            throw new Error('Failed to get user info with access token');
+          }
+          payload = await response.json();
+        }
+      } else if (idToken) {
+        // Verify ID token directly (for mobile app flow)
+        const ticket = await client.verifyIdToken({
+          idToken: idToken,
+          audience: clientId,
+        });
+        payload = ticket.getPayload();
+      } else if (accessToken) {
+        // Verify access token by making a request to Google's userinfo endpoint
+        const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${accessToken}`);
+        if (!response.ok) {
+          throw new Error('Failed to verify access token');
+        }
+        payload = await response.json();
+      }
+
+      if (!payload) {
+        return res.status(401).json({ msg: "Failed to verify token" });
+      }
+
+      // Check if email is verified
+      if (payload.email_verified === false) {
+        return res.status(401).json({ msg: "Email not verified by Google" });
+      }
+
+      const email = payload.email;
+      const name = payload.name || (email ? email.split("@")[0] : "User");
+      const picture = payload.picture;
+
+      console.log("OAuth payload:", { email, name, email_verified: payload.email_verified });
+
+      // Find or create user
+      let user = await User.findOne({ email });
+      if (!user) {
+        // Create with a random password to satisfy schema requirement
+        const randomPwd = Math.random().toString(36).slice(2) + Date.now();
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(randomPwd, salt);
+        user = new User({ 
+          name, 
+          email, 
+          password: hashedPassword,
+          picture: picture // Store profile picture if your User model supports it
+        });
+        await user.save();
+        console.log("Created new user:", user._id);
+      } else {
+        console.log("Found existing user:", user._id);
+      }
+
+      // Issue JWT
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+
+      return res.json({
+        token,
+        user: { 
+          id: user._id, 
+          name: user.name, 
+          email: user.email,
+          picture: user.picture 
+        },
+        provider: "google",
+      });
+    } catch (error) {
+      console.error("Google token verification failed:", error);
+      return res.status(401).json({ 
+        msg: "Invalid Google token", 
+        details: error.message 
+      });
+    }
+  } catch (err) {
+    console.error("oauthGoogle error:", err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};

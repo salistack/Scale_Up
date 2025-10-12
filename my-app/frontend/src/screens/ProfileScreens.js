@@ -30,7 +30,7 @@ const ProfileScreens = () => {
         const token = await AsyncStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch("http://192.168.8.101:5000/api/auth/me", {
+        const res = await fetch("http://172.27.96.1:5000/api/auth/me", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -61,7 +61,7 @@ const ProfileScreens = () => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const res = await fetch("http://192.168.8.101:5000/api/auth/update", {
+      const res = await fetch("http://172.27.96.1:5000/api/auth/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

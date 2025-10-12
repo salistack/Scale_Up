@@ -24,6 +24,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "googleClientId": "1028686468313-n0dbn7b0r882ehu2jaomqp413b9q8798.apps.googleusercontent.com"
     }
   }
 }

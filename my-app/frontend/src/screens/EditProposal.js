@@ -40,7 +40,7 @@ const EditProposal = ({ navigation, route }) => {
         }
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(`http://192.168.8.101:5000/api/proposals/${id}`, { headers });
+        const res = await fetch(`http://172.27.96.1:5000/api/proposals/${id}`, { headers });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           Alert.alert('Error', data.msg || 'Failed to fetch proposal');
@@ -94,7 +94,7 @@ const EditProposal = ({ navigation, route }) => {
         if (token2.toLowerCase().startsWith('bearer ')) token2 = token2.split(' ')[1];
       }
       console.log('Using token for update (debug):', !!token2);
-      const res = await fetch(`http://192.168.8.101:5000/api/proposals/${id}`, {
+      const res = await fetch(`http://172.27.96.1:5000/api/proposals/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token2}` },
         body: JSON.stringify(body),
