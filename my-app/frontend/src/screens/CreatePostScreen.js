@@ -50,6 +50,40 @@ const uploadToCloudinary = async (localUri) => {
   return json.secure_url;
 };
 
+// Function to create local notification
+const createNotification = async (notificationData) => {
+  try {
+    const user = await AsyncStorage.getItem('user');
+    if (!user) return;
+
+    const userData = JSON.parse(user);
+    const userId = userData.id || userData._id;
+
+    const uniqueTimestamp = Date.now() + Math.random();
+    const notificationId = `notif_${uniqueTimestamp.toString().replace('.', '_')}`;
+    
+    const notification = {
+      id: notificationId,
+      title: notificationData.title,
+      message: notificationData.message,
+      type: notificationData.type,
+      toUserId: String(userId),
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+
+    // Store notification
+    const existingNotifications = await AsyncStorage.getItem('userNotifications');
+    const notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
+    notifications.unshift(notification);
+    await AsyncStorage.setItem('userNotifications', JSON.stringify(notifications));
+    
+    console.log('Notification created:', notification);
+  } catch (error) {
+    console.error('Error creating notification:', error);
+  }
+};
+
 const CreatePostScreen = () => {
   const [activeIdx, setActiveIdx] = useState(null);
   const [activeForm, setActiveForm] = useState("entrepreneur"); // entrepreneur, mentor, investor, franchise
@@ -408,9 +442,49 @@ const CreatePostScreen = () => {
         return;
       }
       
-      // Validate fields
-      if (!franchiseName || !franchiseDescription || !franchiseLocation || !franchiseCategory || !franchiseContact) {
-        Alert.alert("Error", "Please fill all required fields");
+      // Validate fields with specific missing field information
+      const missingFields = [];
+      if (!franchiseName) missingFields.push("• Franchise Name");
+      if (!franchiseDescription) missingFields.push("• Description"); 
+      if (!franchiseLocation) missingFields.push("• Location");
+      if (!franchiseCategory) missingFields.push("• Category");
+      if (!franchiseContact) missingFields.push("• Contact Information");
+      
+      if (missingFields.length > 0) {
+        Alert.alert(
+          "Required Fields Missing", 
+          `Please fill in the following required fields:\n\n${missingFields.join('\n')}`
+        );
+        return;
+      }
+
+      // Show confirmation popup before submitting
+      Alert.alert(
+        "Confirm Franchise Post",
+        `Please review your franchise details:\n\n🏢 Name: ${franchiseName}\n📍 Location: ${franchiseLocation}\n🏷️ Category: ${franchiseCategory}\n\nDo you want to post this franchise opportunity?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Post Franchise",
+            onPress: () => submitFranchisePost()
+          }
+        ]
+      );
+    } catch (err) {
+      console.error("Validation error:", err);
+      Alert.alert("Error", "An error occurred while validating your input");
+    }
+  };
+
+  // Separate function for actual submission
+  const submitFranchisePost = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Please log in first");
         return;
       }
       
@@ -529,7 +603,26 @@ const CreatePostScreen = () => {
       }
       
       if (response.ok && data && data.success) {
-        Alert.alert("Success", "Franchise created successfully!");
+        // Create local notification if backend provided notification data
+        if (data.notification) {
+          await createNotification({
+            title: "Franchise Posted Successfully!",
+            message: data.notification.message,
+            type: data.notification.type
+          });
+        }
+
+        Alert.alert(
+          "Success!", 
+          `Your franchise "${franchiseName}" has been posted successfully!\n\n📱 You'll receive notifications when investors schedule meetings with you.`,
+          [
+            {
+              text: "View Posts",
+              onPress: () => navigation.navigate("HomeTabs")
+            }
+          ]
+        );
+        
         // Reset form
         setFranchiseName("");
         setFranchiseDescription("");
@@ -537,8 +630,6 @@ const CreatePostScreen = () => {
         setFranchiseCategory("");
         setFranchiseContact("");
         setFranchiseImage(null);
-        
-        navigation.navigate("HomeTabs");
       } else {
         console.error("API Error Response:", data);
         const baseMsg = data && (data.message || data.msg);

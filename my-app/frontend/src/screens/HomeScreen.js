@@ -128,7 +128,7 @@ const HomeScreen = () => {
   const [activeFeed, setActiveFeed] = useState("entrepreneur");
   const [fadeAnim] = useState(new Animated.Value(0));
   const [franchises, setFranchises] = useState([]);
-  const [newFranchiseCount, setNewFranchiseCount] = useState(0);
+
 
   const navigation = useNavigation();
 
@@ -323,32 +323,30 @@ const HomeScreen = () => {
       if (data.success && Array.isArray(data.franchises)) {
         console.log(`Retrieved ${data.franchises.length} franchises`);
         
-        // Count new franchises
-        const newFranchises = data.franchises.filter(franchise => franchise.isNew);
-        console.log(`${newFranchises.length} new franchises found`);
+
         
         // Debug check each franchise object
         data.franchises.forEach((franchise, index) => {
           console.log(`Franchise #${index + 1}:`, 
             `ID: ${franchise._id}`, 
             `Name: ${franchise.name}`,
-            `Is New: ${franchise.isNew}`,
+
             `Has image: ${!!franchise.image}`);
         });
         
         // Set franchises and count of new ones
         setFranchises(data.franchises);
-        setNewFranchiseCount(newFranchises.length);
+
       } else {
         console.log("No franchises found or invalid format:", data);
         setFranchises([]);
-        setNewFranchiseCount(0);
+
       }
     } catch (error) {
       console.error("Error fetching franchises:", error);
       Alert.alert("Network Error", `Failed to load franchises: ${error.message}`);
       setFranchises([]);
-      setNewFranchiseCount(0);
+
     }
   };
 
@@ -653,58 +651,18 @@ const HomeScreen = () => {
             <View style={styles.sectionHeader}>
               <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 5}}>
                 <Text style={styles.sectionTitle}>Franchise Opportunities</Text>
-                <View style={styles.franchiseCountBadge}>
-                  <Text style={styles.franchiseCountText}>{franchises.length}</Text>
-                </View>
               </View>
               <Text style={styles.sectionSubtitle}>
-                Explore business franchise options
-                {newFranchiseCount > 0 && ` • ${newFranchiseCount} new ${newFranchiseCount === 1 ? 'listing' : 'listings'}`}
+                Explore business franchise opportunities
               </Text>
-              <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10}}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.newBadge, {marginLeft: 0}]}>
-                    <Text style={styles.newBadgeText}>NEW</Text>
-                  </View>
-                  <Text style={{fontSize: 12, color: '#666', marginLeft: 5}}>Posted within 48 hours</Text>
-                </View>
-              </View>
-              <View style={{flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap'}}>
+              <View style={{flexDirection: 'row', justifyContent: 'flex-start'}}>
                 <TouchableOpacity 
-                  style={styles.refreshButton}
+                  style={[styles.refreshButton, {backgroundColor: '#6750A4'}]}
                   onPress={() => {
                     loadFranchises();
                   }}
                 >
                   <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.refreshButton, {backgroundColor: '#9C27B0'}]}
-                  onPress={() => {
-                    // Sort franchises by newest first
-                    const sorted = [...franchises].sort((a, b) => {
-                      return new Date(b.createdAt) - new Date(a.createdAt);
-                    });
-                    setFranchises(sorted);
-                  }}
-                >
-                  <Text style={styles.refreshButtonText}>⏱️ Latest</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.refreshButton, {backgroundColor: '#FF9800'}]}
-                  onPress={() => {
-                    // Show new franchises first, then others
-                    const sorted = [...franchises].sort((a, b) => {
-                      if (a.isNew && !b.isNew) return -1;
-                      if (!a.isNew && b.isNew) return 1;
-                      return 0;
-                    });
-                    setFranchises(sorted);
-                  }}
-                >
-                  <Text style={styles.refreshButtonText}>⭐ New First</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -726,16 +684,8 @@ const HomeScreen = () => {
                   return (
                     <View 
                       key={franchise._id || `franchise-${index}`} 
-                      style={[
-                        styles.feedCardProfessional,
-                        franchise.isNew && styles.newFranchiseCard
-                      ]}
+                      style={styles.feedCardProfessional}
                     >
-                      {franchise.isNew && (
-                        <View style={styles.newFranchiseRibbon}>
-                          <Text style={styles.newFranchiseRibbonText}>NEW LISTING</Text>
-                        </View>
-                      )}
                       <View style={styles.feedCardTopRowProfessional}>
                         <View style={styles.profilePicContainer}>
                           <Image
@@ -765,14 +715,10 @@ const HomeScreen = () => {
                           <Text style={styles.feedTitleProfessional}>
                             {franchise.name}
                           </Text>
-                          {franchise.isNew && (
-                            <View style={styles.newBadge}>
-                              <Text style={styles.newBadgeText}>NEW</Text>
-                            </View>
-                          )}
+
                         </View>
-                        <View style={[styles.industryBadge, styles.franchiseBadge]}>
-                          <Text style={styles.feedIndustry}>{franchise.category}</Text>
+                        <View style={[styles.industryBadge, {backgroundColor: '#6750A4'}]}>
+                          <Text style={[styles.feedIndustry, {color: 'white'}]}>{franchise.category}</Text>
                         </View>
                         <Text style={styles.franchiseLocation}>
                           📍 {franchise.location || 'Location not specified'}
@@ -812,55 +758,20 @@ const HomeScreen = () => {
                       </View>
 
                       <View style={styles.feedcardBottomProfessional}>
-                        {franchise.isNew ? (
-                          <TouchableOpacity 
-                            style={[styles.franchiseScheduleButton, styles.newFranchiseButton]}
-                            onPress={() => {
-                              Alert.alert(
-                                "Contact " + (franchise.createdBy?.name || "Owner"),
-                                `Would you like to contact the owner about "${franchise.name}"?`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  { 
-                                    text: "Contact Now", 
-                                    onPress: () => {
-                                      // You can implement the actual contact logic here
-                                      Alert.alert("Success", "Contact request sent! You will be notified when they respond.");
-                                    }
-                                  }
-                                ]
-                              );
-                            }}
-                          >
-                            <Text style={styles.franchiseScheduleButtonText}>
-                              🔥 Request Information Now
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity 
-                            style={styles.franchiseScheduleButton}
-                            onPress={() => {
-                              Alert.alert(
-                                "Schedule Meeting",
-                                `Would you like to schedule a meeting about "${franchise.name}"?`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  { 
-                                    text: "Schedule", 
-                                    onPress: () => {
-                                      // You can implement the actual scheduling logic here
-                                      Alert.alert("Success", "Meeting request sent!");
-                                    }
-                                  }
-                                ]
-                              );
-                            }}
-                          >
-                            <Text style={styles.franchiseScheduleButtonText}>
-                              🗓️ Schedule Meeting
-                            </Text>
-                          </TouchableOpacity>
-                        )}
+                        <TouchableOpacity 
+                          style={styles.franchiseScheduleButton}
+                          onPress={() => {
+                            navigation.navigate("ScheduleScreen", {
+                              postCreator: franchise.createdBy,
+                              postType: 'franchise',
+                              postTitle: franchise.name
+                            });
+                          }}
+                        >
+                          <Text style={styles.franchiseScheduleButtonText}>
+                            � Request Schedule
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -1876,14 +1787,14 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   franchiseScheduleButton: {
-    backgroundColor: "#E57373",
+    backgroundColor: "#6750A4",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
-    shadowColor: "#E57373",
+    shadowColor: "#6750A4",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
