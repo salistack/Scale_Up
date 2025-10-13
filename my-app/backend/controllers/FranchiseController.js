@@ -3,8 +3,17 @@ const Franchise = require("../models/FranchiseModel");
 // Create a new franchise
 const createFranchise = async (req, res) => {
   try {
-    console.log("Creating franchise, request body:", req.body);
-    console.log("Files received:", req.file || "No file");
+    console.log("Creating franchise, request body keys:", Object.keys(req.body || {}));
+    console.log("Files received:", req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path,
+      url: req.file.url,
+      secure_url: req.file.secure_url,
+      filename: req.file.filename,
+    } : "No file");
     
     const { name, description, location, category, contact } = req.body;
 
@@ -37,9 +46,9 @@ const createFranchise = async (req, res) => {
     // Also accept a direct URL from the client if provided
     if (!imageUrl) {
       const bodyUrl = (req.body && (req.body.imageUrl || req.body.image)) || "";
-      if (typeof bodyUrl === 'string' && bodyUrl.startsWith('http')) {
+      if (typeof bodyUrl === 'string' && bodyUrl.trim().length > 0) {
         imageUrl = bodyUrl.trim();
-        console.log("Using image URL from body:", imageUrl);
+        console.log("Using image from body (as-is):", imageUrl);
       }
     }
 
@@ -60,12 +69,7 @@ const createFranchise = async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: "Franchise created successfully",
-      franchise: savedFranchise,
-      notification: {
-        type: 'franchise_created',
-        message: `Your franchise "${name}" has been posted successfully! You'll receive notifications when investors schedule meetings.`,
-        toUserId: creatorId
-      }
+      franchise: savedFranchise 
     });
   } catch (error) {
     console.error("Create Franchise Error:", error);
@@ -187,16 +191,8 @@ const updateFranchise = async (req, res) => {
 
     franchise.updatedAt = Date.now();
 
-    const updatedFranchise = await franchise.save();
-    res.status(200).json({ 
-      success: true, 
-      franchise: updatedFranchise,
-      notification: {
-        type: 'franchise_updated',
-        message: `Your franchise "${updatedFranchise.name}" has been updated successfully!`,
-        toUserId: franchise.createdBy
-      }
-    });
+  const updatedFranchise = await franchise.save();
+    res.status(200).json({ success: true, franchise: updatedFranchise });
   } catch (error) {
     console.error("Update Franchise Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -208,17 +204,8 @@ const deleteFranchise = async (req, res) => {
   try {
     const franchise = req.franchise; // from FranchisePostOwner middleware
 
-    const franchiseName = franchise.name;
     await franchise.deleteOne();
-    res.status(200).json({ 
-      success: true, 
-      message: "Franchise deleted successfully",
-      notification: {
-        type: 'franchise_deleted',
-        message: `Your franchise "${franchiseName}" has been deleted successfully.`,
-        toUserId: franchise.createdBy
-      }
-    });
+    res.status(200).json({ success: true, message: "Franchise deleted successfully" });
   } catch (error) {
     console.error("Delete Franchise Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
