@@ -12,7 +12,6 @@ import {
   Image,
   TouchableOpacity,
   Alert,
-  Animated,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -49,6 +48,40 @@ const uploadToCloudinary = async (localUri) => {
   if (!res.ok) throw new Error(await res.text());
   const json = await res.json();
   return json.secure_url;
+};
+
+// Function to create local notification
+const createNotification = async (notificationData) => {
+  try {
+    const user = await AsyncStorage.getItem('user');
+    if (!user) return;
+
+    const userData = JSON.parse(user);
+    const userId = userData.id || userData._id;
+
+    const uniqueTimestamp = Date.now() + Math.random();
+    const notificationId = `notif_${uniqueTimestamp.toString().replace('.', '_')}`;
+    
+    const notification = {
+      id: notificationId,
+      title: notificationData.title,
+      message: notificationData.message,
+      type: notificationData.type,
+      toUserId: String(userId),
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+
+    // Store notification
+    const existingNotifications = await AsyncStorage.getItem('userNotifications');
+    const notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
+    notifications.unshift(notification);
+    await AsyncStorage.setItem('userNotifications', JSON.stringify(notifications));
+    
+    console.log('Notification created:', notification);
+  } catch (error) {
+    console.error('Error creating notification:', error);
+  }
 };
 
 const CreatePostScreen = () => {
@@ -89,22 +122,7 @@ const CreatePostScreen = () => {
   const [franchiseLocation, setFranchiseLocation] = useState("");
   const [franchiseCategory, setFranchiseCategory] = useState("");
   const [franchiseContact, setFranchiseContact] = useState("");
-  const [franchiseImage, setFranchiseImage] = useState(null); // no longer used in UI; kept to avoid broader refactors
-
-  // Lightweight toast for quick confirmations
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const toastAnim = React.useRef(new Animated.Value(0)).current;
-
-  const showToast = (message) => {
-    setToastMessage(message);
-    setToastVisible(true);
-    Animated.sequence([
-      Animated.timing(toastAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.delay(1600),
-      Animated.timing(toastAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => setToastVisible(false));
-  };
+  const [franchiseImage, setFranchiseImage] = useState(null);
 
   const industries = [
     "Technology",
@@ -198,41 +216,41 @@ const CreatePostScreen = () => {
   };
   
   // Pick Franchise Image
-  // pickFranchiseImage removed with image upload feature
-
-  // Validate Franchise Form Fields
-  const validateFranchiseForm = () => {
-    const errs = [];
-    const name = (franchiseName || "").trim();
-    const desc = (franchiseDescription || "").trim();
-    const loc = (franchiseLocation || "").trim();
-    const cat = (franchiseCategory || "").trim();
-    const contact = (franchiseContact || "").trim();
-
-    if (!name) errs.push("Franchise Name is required");
-    else if (name.length < 3) errs.push("Franchise Name must be at least 3 characters");
-
-    if (!desc) errs.push("Description is required");
-    else if (desc.length < 20) errs.push("Description must be at least 20 characters");
-
-    if (!loc) errs.push("Location is required");
-    else if (loc.length < 2) errs.push("Location is too short");
-
-    if (!cat) errs.push("Category is required");
-    else if (!franchiseCategories.includes(cat)) errs.push("Invalid category selection");
-
-    if (!contact) errs.push("Contact information is required");
-    else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-      const digits = contact.replace(/\D/g, "");
-      const looksLikeEmail = emailRegex.test(contact);
-      const looksLikePhone = digits.length >= 7; // lenient phone check
-      if (!looksLikeEmail && !looksLikePhone) {
-        errs.push("Contact must include a valid email or phone number");
-      }
+  const pickFranchiseImage = async () => {
+    const permissionResult = 
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permission required", "Please allow photo library access.");
+      return;
     }
 
-    return errs;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      console.log("Selected franchise image:", result.assets[0]);
+      
+      // Get image info
+      const selectedImage = result.assets[0];
+      
+      // Check file size and format
+      const fileSize = selectedImage.fileSize; // in bytes
+      const maxSize = 10 * 1024 * 1024; // 10 MB
+      
+      if (fileSize > maxSize) {
+        Alert.alert(
+          "Image too large", 
+          "Please select an image smaller than 10MB"
+        );
+        return;
+      }
+      
+      setFranchiseImage(selectedImage);
+    }
   };
 
   // Entrepreneur Post Handler
@@ -424,12 +442,49 @@ const CreatePostScreen = () => {
         return;
       }
       
-      // Validate fields with detailed messages
-      const validationErrors = validateFranchiseForm();
-      if (validationErrors.length > 0) {
-        const message = "Please fix the following:\n\n• " + validationErrors.join("\n• ");
-        Alert.alert("Validation", message);
-        showToast("Please correct the form");
+      // Validate fields with specific missing field information
+      const missingFields = [];
+      if (!franchiseName) missingFields.push("• Franchise Name");
+      if (!franchiseDescription) missingFields.push("• Description"); 
+      if (!franchiseLocation) missingFields.push("• Location");
+      if (!franchiseCategory) missingFields.push("• Category");
+      if (!franchiseContact) missingFields.push("• Contact Information");
+      
+      if (missingFields.length > 0) {
+        Alert.alert(
+          "Required Fields Missing", 
+          `Please fill in the following required fields:\n\n${missingFields.join('\n')}`
+        );
+        return;
+      }
+
+      // Show confirmation popup before submitting
+      Alert.alert(
+        "Confirm Franchise Post",
+        `Please review your franchise details:\n\n🏢 Name: ${franchiseName}\n📍 Location: ${franchiseLocation}\n🏷️ Category: ${franchiseCategory}\n\nDo you want to post this franchise opportunity?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Post Franchise",
+            onPress: () => submitFranchisePost()
+          }
+        ]
+      );
+    } catch (err) {
+      console.error("Validation error:", err);
+      Alert.alert("Error", "An error occurred while validating your input");
+    }
+  };
+
+  // Separate function for actual submission
+  const submitFranchisePost = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Please log in first");
         return;
       }
       
@@ -441,11 +496,55 @@ const CreatePostScreen = () => {
       formData.append("category", franchiseCategory);
       formData.append("contact", franchiseContact);
       
-      // Image upload removed by request: no image is sent with the franchise form
+      // Handle image upload: try Cloudinary first to get a URL; fallback to multipart attach
+      if (franchiseImage) {
+        const uri = franchiseImage.uri;
+        let uploadedUrl = null;
+        try {
+          console.log("Uploading franchise image to Cloudinary from frontend...");
+          uploadedUrl = await uploadToCloudinary(uri);
+          console.log("Cloudinary upload success. URL:", uploadedUrl);
+        } catch (e) {
+          console.warn("Cloudinary frontend upload failed, will send file via multipart to backend:", e?.message || e);
+        }
+
+        if (uploadedUrl) {
+          // Send URL so backend can store it reliably
+          formData.append("imageUrl", uploadedUrl);
+        } else {
+          try {
+            console.log("Preparing to attach image file to FormData", franchiseImage);
+            // Derive a safe mime type and extension
+            let derivedExt = '';
+            if (uri && uri.includes('.')) {
+              derivedExt = uri.substring(uri.lastIndexOf('.') + 1).toLowerCase();
+            }
+            const mimeFromPicker = franchiseImage.mimeType || '';
+            let ext = (mimeFromPicker.split('/')[1] || derivedExt || 'jpeg');
+            if (ext === 'jpg') ext = 'jpeg';
+            const mimeType = mimeFromPicker || `image/${ext}`;
+            const fileName = `franchise_${Date.now()}.${ext === 'jpeg' ? 'jpg' : ext}`;
+
+            // Add to form data (let RN set proper Content-Type with boundary)
+            formData.append("image", {
+              uri,
+              name: fileName,
+              type: mimeType,
+            });
+            console.log(`Image appended to form data: ${fileName} (${mimeType})`);
+          } catch (imageError) {
+            console.error("Error preparing image:", imageError);
+            Alert.alert(
+              "Image Error", 
+              "There was a problem with the image. Try uploading a different one or continue without an image."
+            );
+            // Continue without image instead of returning
+          }
+        }
+      }
       
-  console.log("Submitting franchise form...");
-  // Small non-blocking popup for immediate feedback
-  showToast("Submitting franchise…");
+      console.log("Submitting franchise form...");
+      Alert.alert("Submitting", "Sending your franchise information...");
 
       // Franchise-specific API base resolution with fallbacks (do not change other flows)
       const candidateBases = [
@@ -504,28 +603,33 @@ const CreatePostScreen = () => {
       }
       
       if (response.ok && data && data.success) {
-        // Reset form immediately on success
+        // Create local notification if backend provided notification data
+        if (data.notification) {
+          await createNotification({
+            title: "Franchise Posted Successfully!",
+            message: data.notification.message,
+            type: data.notification.type
+          });
+        }
+
+        Alert.alert(
+          "Success!", 
+          `Your franchise "${franchiseName}" has been posted successfully!\n\n📱 You'll receive notifications when investors schedule meetings with you.`,
+          [
+            {
+              text: "View Posts",
+              onPress: () => navigation.navigate("HomeTabs")
+            }
+          ]
+        );
+        
+        // Reset form
         setFranchiseName("");
         setFranchiseDescription("");
         setFranchiseLocation("");
         setFranchiseCategory("");
         setFranchiseContact("");
         setFranchiseImage(null);
-
-        // Quick visual confirmation
-        showToast("Franchise created successfully");
-        Alert.alert(
-          "Success", 
-          "🎉 Franchise created successfully!\n\nYou'll receive notifications when investors schedule meetings with you.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                navigation.navigate("HomeTabs");
-              }
-            }
-          ]
-        );
       } else {
         console.error("API Error Response:", data);
         const baseMsg = data && (data.message || data.msg);
@@ -536,7 +640,6 @@ const CreatePostScreen = () => {
       }
     } catch (err) {
       console.error("Franchise Submit Error:", err);
-      showToast("Failed to create franchise");
       Alert.alert(
         "Error", 
         "An error occurred while creating the franchise. Please check your internet connection and try again."
@@ -993,6 +1096,30 @@ const CreatePostScreen = () => {
               onChangeText={setFranchiseContact}
             />
 
+            <TouchableOpacity onPress={pickFranchiseImage} style={styles.uploadButton}>
+              <Text style={styles.uploadButtonText}>Upload Franchise Image</Text>
+            </TouchableOpacity>
+
+            {franchiseImage && (
+              <View style={{ marginTop: 15, alignItems: 'center' }}>
+                <Image 
+                  source={{ uri: franchiseImage.uri }} 
+                  style={{ width: 200, height: 200, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' }} 
+                />
+                <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                  <Text style={{ marginBottom: 5, color: '#666' }}>
+                    {(franchiseImage.fileSize / (1024 * 1024)).toFixed(2)} MB
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={{ marginTop: 10, padding: 8, backgroundColor: '#f44336', borderRadius: 4 }}
+                  onPress={() => setFranchiseImage(null)}
+                >
+                  <Text style={{ color: 'white' }}>Remove Image</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity style={styles.postButton} onPress={handleFranchiseSubmit}>
               <Text style={styles.postButtonText}>Create Franchise</Text>
             </TouchableOpacity>
@@ -1013,27 +1140,6 @@ const CreatePostScreen = () => {
           </>
         )}
       </ScrollView>
-      {toastVisible && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              opacity: toastAnim,
-              transform: [
-                {
-                  translateY: toastAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [40, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </Animated.View>
-      )}
     </SafeAreaView>
   );
 };
@@ -1229,28 +1335,6 @@ const styles = StyleSheet.create({
     height: 86,
     borderRadius: 10,
     backgroundColor: "#eee",
-  },
-  toast: {
-    position: "absolute",
-    bottom: 28,
-    left: 20,
-    right: 20,
-    backgroundColor: "#323232",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  toastText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });
 

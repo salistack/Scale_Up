@@ -101,12 +101,16 @@ const ScheduleScreen = ({ route }) => {
       if (postCreator && (postCreator.id || postCreator._id)) {
         const uniqueTimestamp = Date.now() + Math.random();
         const notificationId = `notif_${uniqueTimestamp.toString().replace('.', '_')}`;
+        // Create franchise-specific message
+        const isForFranchise = postType === 'franchise';
+        const messageText = isForFranchise 
+          ? `🏢 ${currentUser.name} is interested in your franchise "${postTitle}" and has scheduled a meeting!`
+          : `${currentUser.name} has scheduled a meeting with you about "${postTitle}"`;
+          
         const notification = {
           id: notificationId,
-          title: `New Meeting Request`,
-          message: postType === 'franchise' 
-            ? `🏢 ${currentUser.name} is interested in your franchise "${postTitle}" and has scheduled a meeting!`
-            : `${currentUser.name} has scheduled a meeting with you about "${postTitle}"`,
+          title: isForFranchise ? `New Franchise Meeting Request` : `New Meeting Request`,
+          message: messageText,
           date: selectedDate,
           time: selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           type: 'meeting_request',
@@ -114,6 +118,7 @@ const ScheduleScreen = ({ route }) => {
           fromUserName: currentUser.name,
           toUserId: String(postCreator.id || postCreator._id), // Ensure string format
           postTitle: postTitle,
+          postType: postType,
           read: false,
           createdAt: new Date().toISOString()
         };
