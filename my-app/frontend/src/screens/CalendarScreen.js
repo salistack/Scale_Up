@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,35 +10,76 @@ import {
   Modal,
   TextInput,
   StatusBar,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const CalendarScreen = () => {
+  const navigation = useNavigation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showEventModal, setShowEventModal] = useState(false);
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: 'Mentor Meeting: John Doe',
-      date: new Date(),
-      time: '14:30 - 15:30',
-      type: 'meeting',
-      role: 'mentor',
-      notes: 'Discuss MVP development progress',
-      location: 'Zoom Meeting'
-    },
-    {
-      id: 2,
-      title: 'Pitch Evaluation: GreenTech',
-      date: new Date(),
-      time: '16:00 - 17:00',
-      type: 'pitch',
-      role: 'investor',
-      notes: 'Series A funding discussion',
-      location: 'Conference Room A'
+  const [events, setEvents] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Load user schedules
+  const loadUserSchedules = async () => {
+    try {
+      const user = await AsyncStorage.getItem('user');
+      let userData = null;
+      if (user) {
+        userData = JSON.parse(user);
+        setCurrentUserId(userData.id || userData._id);
+      }
+
+      const userSchedules = await AsyncStorage.getItem('userSchedules');
+      if (userSchedules) {
+        const schedules = JSON.parse(userSchedules);
+        const currentUserId = userData?.id || userData?._id;
+        
+        console.log('All schedules:', schedules.length);
+        console.log('Current user ID:', currentUserId);
+        console.log('Schedule user IDs:', schedules.map(s => ({ id: s.id, userId: s.userId, title: s.title })));
+        
+        // Convert date strings back to Date objects and filter by current user
+        const processedSchedules = schedules
+          .filter(schedule => {
+            // Handle both string and number comparison, and null/undefined cases
+            const scheduleUserId = schedule.userId;
+            const match = scheduleUserId && currentUserId && 
+                         (String(scheduleUserId) === String(currentUserId));
+            console.log(`Schedule ${schedule.id}: userId="${scheduleUserId}" (${typeof scheduleUserId}), currentUserId="${currentUserId}" (${typeof currentUserId}), match=${match}`);
+            return match;
+          })
+          .map(schedule => ({
+            ...schedule,
+            date: new Date(schedule.date)
+          }));
+          
+        console.log('Filtered schedules for user:', processedSchedules.length);
+        setEvents(processedSchedules);
+      }
+    } catch (error) {
+      console.error('Error loading schedules:', error);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadUserSchedules();
+  }, []);
+
+  // Reload schedules when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserSchedules();
+    }, [])
+  );
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -140,7 +181,7 @@ const CalendarScreen = () => {
       <View style={styles.eventHeader}>
         <View style={styles.eventTypeIcon}>
           <Icon 
-            name={item.type === 'meeting' ? 'people' : item.type === 'pitch' ? 'mic' : 'event'} 
+            name={item.type === 'meeting' ? 'schedule' : item.type === 'pitch' ? 'mic' : 'event'} 
             size={20} 
             color="#FFF" 
           />
@@ -167,9 +208,31 @@ const CalendarScreen = () => {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Calendar</Text>
-        <TouchableOpacity style={styles.filterButton}>
-          <Icon name="filter-list" size={24} color="#333" />
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={24} color="#6750A4" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Schedules</Text>
+        <TouchableOpacity 
+          style={styles.filterButton}
+          onPress={async () => {
+            try {
+              await AsyncStorage.removeItem('userSchedules');
+              await AsyncStorage.removeItem('userNotifications');
+              loadUserSchedules();
+              console.log('Cleared all schedules and notifications');
+              
+              // Show confirmation
+              Alert.alert('Cleared', 'All schedules and notifications have been cleared');
+            } catch (error) {
+              console.error('Error clearing data:', error);
+              Alert.alert('Error', 'Failed to clear data');
+            }
+          }}
+        >
+          <Icon name="clear" size={24} color="#FF6B6B" />
         </TouchableOpacity>
       </View>
 
@@ -203,14 +266,17 @@ const CalendarScreen = () => {
       {/* Events List */}
       <View style={styles.eventsSection}>
         <Text style={styles.eventsTitle}>
-          Events for {selectedDate.toLocaleDateString()}
+          Events for {selectedDate.toLocaleDateString()} ({getEventsForSelectedDate().length})
+        </Text>
+        <Text style={styles.debugText}>
+          Total user events: {events.length} | User ID: {currentUserId}
         </Text>
         
         <FlatList
-          data={getEventsForSelectedDate()}
-          renderItem={renderEventCard}
-          keyExtractor={item => item.id.toString()}
-          showsVerticalScrollIndicator={false}
+        data={getEventsForSelectedDate()}
+        renderItem={renderEventCard}
+        keyExtractor={item => String(item.id)}
+        showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyEvents}>
               <Icon name="event" size={48} color="#CCC" />
@@ -236,28 +302,41 @@ const CalendarScreen = () => {
         onRequestClose={() => setShowEventModal(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Event</Text>
-              <TouchableOpacity onPress={() => setShowEventModal(false)}>
-                <Icon name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput style={styles.input} placeholder="Event Title" />
-            <TextInput style={styles.input} placeholder="Date" />
-            <TextInput style={styles.input} placeholder="Time" />
-            <TextInput style={styles.input} placeholder="Location" />
-            <TextInput 
-              style={[styles.input, styles.textArea]} 
-              placeholder="Notes" 
-              multiline 
-            />
-            
-            <TouchableOpacity style={styles.submitButton}>
-              <Text style={styles.submitButtonText}>Add Event</Text>
-            </TouchableOpacity>
-          </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKAV}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Add New Event</Text>
+                  <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                    <Icon name="close" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.modalScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <TextInput style={styles.input} placeholder="Event Title" />
+                  <TextInput style={styles.input} placeholder="Date" />
+                  <TextInput style={styles.input} placeholder="Time" />
+                  <TextInput style={styles.input} placeholder="Location" />
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Notes"
+                    multiline
+                  />
+                </ScrollView>
+
+                <TouchableOpacity style={styles.submitButton}>
+                  <Text style={styles.submitButtonText}>Add Event</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -277,6 +356,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+  },
+  backButton: {
+    paddingRight: 10,
   },
   headerTitle: {
     fontSize: 24,
@@ -354,7 +436,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF6B6B',
+    backgroundColor: '#6750A4',
   },
   eventsSection: {
     flex: 1,
@@ -365,6 +447,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 10,
+    fontStyle: 'italic',
   },
   eventCard: {
     backgroundColor: '#F8F9FA',
@@ -377,10 +465,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  eventCardEntrepreneur: { borderLeftWidth: 4, borderLeftColor: '#FF6B6B' },
-  eventCardInvestor: { borderLeftWidth: 4, borderLeftColor: '#4ECDC4' },
-  eventCardMentor: { borderLeftWidth: 4, borderLeftColor: '#FFD166' },
-  eventCardFranchise: { borderLeftWidth: 4, borderLeftColor: '#45B7D1' },
+  eventCardEntrepreneur: { borderLeftWidth: 4, borderLeftColor: '#6750A4' },
+  eventCardInvestor: { borderLeftWidth: 4, borderLeftColor: '#6750A4' },
+  eventCardMentor: { borderLeftWidth: 4, borderLeftColor: '#6750A4' },
+  eventCardFranchise: { borderLeftWidth: 4, borderLeftColor: '#6750A4' },
+  eventCardSchedule: { borderLeftWidth: 4, borderLeftColor: '#6750A4' },
   eventHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -390,7 +479,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -440,7 +529,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -455,11 +544,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
+  modalKAV: {
+    width: '100%',
+    alignItems: 'center',
+  },
   modalContent: {
     width: '90%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
+  },
+  modalScrollContent: {
+    paddingBottom: 10,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -485,7 +581,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: '#45B7D1',
+    backgroundColor: '#6750A4',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',

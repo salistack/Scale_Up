@@ -19,7 +19,7 @@ const SignUp = () => {
   const handleSignUp = async () => {
     try {
       const response = await fetch(
-        "http://10.68.102.202:5000/api/auth/signup",
+        "http://10.161.162.45:5000/api/auth/signup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

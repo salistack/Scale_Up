@@ -22,12 +22,10 @@ import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import InvestorFeed from "../screens/InvestorFeed";
+import eventBus from "../utils/eventBus";
 
 const { width } = Dimensions.get("window");
 
-const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
-const CLOUDINARY_API_KEY = "972712514358626";
-const CLOUDINARY_API_SECRET = "AhsSmC4D7qFlWQ6ba2l4CKF_9JE";
 
 const SECTORS = [
   "Travel",
@@ -85,7 +83,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -130,7 +128,9 @@ const HomeScreen = () => {
   const [qrPostId, setQrPostId] = useState(null);
   const [activeFeed, setActiveFeed] = useState("entrepreneur");
   const [fadeAnim] = useState(new Animated.Value(0));
-  
+    const [franchises, setFranchises] = useState([]);
+
+
   // Chat states
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -169,7 +169,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${editPostId}`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${editPostId}`,
         {
           method: "PUT",
           headers: {
@@ -230,7 +230,7 @@ const HomeScreen = () => {
       const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
 
       const downloadResumable = FileSystem.createDownloadResumable(
-        `http://192.168.8.101:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${postId}/download-pdf`,
         fileUri,
         {
           headers: {
@@ -267,7 +267,7 @@ const HomeScreen = () => {
 
     try {
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://10.161.162.45:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -289,22 +289,118 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://192.168.8.101:5000/api/mentors")
-      .then((res) => res.json())
-      .then((data) => setMentors(data))
-      .catch(() => setMentors([]));
+    // Initial fetch for mentors and franchises
+    loadMentors();
+    console.log("Initial franchise API call from useEffect");
+    loadFranchises();
+    // Subscribe to immediate updates
+    const unsubMentor = eventBus.on("mentor:changed", () => {
+      loadMentors();
+    });
+    const unsubFranchise = eventBus.on("franchise:changed", () => {
+      loadFranchises();
+    });
+    return () => {
+      unsubMentor && unsubMentor();
+      unsubFranchise && unsubFranchise();
+    };
   }, []);
+
+  const loadMentors = async () => {
+    try {
+      const ts = Date.now();
+      const res = await fetch(
+        `http://10.161.162.45:5000/api/mentors?_=${ts}`,
+        {
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMentors(data);
+      } else if (data && Array.isArray(data.mentors)) {
+        setMentors(data.mentors);
+      } else {
+        setMentors([]);
+      }
+    } catch (e) {
+      setMentors([]);
+    }
+  };
+
+  const loadFranchises = async () => {
+    try {
+      console.log("Fetching franchises...");
+      const response = await fetch("http://10.161.162.45:5000/api/franchise/all");
+      console.log("Franchise response status:", response.status);
+      
+      // Log response headers
+      const headers = {};
+      response.headers.forEach((value, name) => {
+        headers[name] = value;
+      });
+      console.log("Response headers:", headers);
+      
+      const responseText = await response.text();
+      console.log("Raw response text:", responseText);
+      
+      // Try to parse the response
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log("Parsed franchise data:", data);
+      } catch (parseError) {
+        console.error("Error parsing franchise response:", parseError);
+        Alert.alert("Debug Info", `Could not parse response: ${responseText.substring(0, 100)}...`);
+        setFranchises([]);
+        return;
+      }
+      
+      if (data.success && Array.isArray(data.franchises)) {
+        console.log(`Retrieved ${data.franchises.length} franchises`);
+        
+
+        
+        // Debug check each franchise object
+        data.franchises.forEach((franchise, index) => {
+          console.log(`Franchise #${index + 1}:`, 
+            `ID: ${franchise._id}`, 
+            `Name: ${franchise.name}`,
+
+            `Has image: ${!!franchise.image}`);
+        });
+        
+        // Set franchises and count of new ones
+        setFranchises(data.franchises);
+
+      } else {
+        console.log("No franchises found or invalid format:", data);
+        setFranchises([]);
+
+      }
+    } catch (error) {
+      console.error("Error fetching franchises:", error);
+      Alert.alert("Network Error", `Failed to load franchises: ${error.message}`);
+      setFranchises([]);
+
+    }
+  };
 
   useFocusEffect(
     React.useCallback(() => {
       loadUserAndPosts();
+      loadFranchises();
+      loadMentors();
     }, [])
   );
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
+    if (hour < 12) return "Good evening";
+    if (hour < 18) return "Good evening";
     return "Good evening";
   };
 
@@ -344,7 +440,7 @@ const HomeScreen = () => {
       
       console.log('Sending message to mentor API...');
       
-      const response = await fetch("http://192.168.8.101:5000/api/chat/mentor", {
+      const response = await fetch("http://10.161.162.45:5000/api/chat/mentor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -449,6 +545,23 @@ const HomeScreen = () => {
               ]}
             >
               🎓 Mentors
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.formSwitchBtn,
+              activeFeed === "franchise" && styles.formSwitchBtnActive,
+            ]}
+            onPress={() => setActiveFeed("franchise")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.formSwitchText,
+                activeFeed === "franchise" && styles.formSwitchTextActive,
+              ]}
+            >
+              🏪 Franchises
             </Text>
           </TouchableOpacity>
         </View>
@@ -653,6 +766,139 @@ const HomeScreen = () => {
               </View>
             )}
           </View>
+        ) : activeFeed === "franchise" ? (
+          <View style={styles.feedSection}>
+            <View style={styles.sectionHeader}>
+              <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 5}}>
+                <Text style={styles.sectionTitle}>Franchise Opportunities</Text>
+              </View>
+              <Text style={styles.sectionSubtitle}>
+                Explore business franchise opportunities
+              </Text>
+              <View style={{flexDirection: 'row', justifyContent: 'flex-start'}}>
+                <TouchableOpacity 
+                  style={[styles.refreshButton, {backgroundColor: '#6750A4'}]}
+                  onPress={() => {
+                    loadFranchises();
+                  }}
+                >
+                  <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {franchises.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <Text style={styles.emptyStateIcon}>🏪</Text>
+                <Text style={styles.emptyStateText}>No franchise listings available</Text>
+                <Text style={styles.emptyStateSubtext}>Be the first to list your franchise!</Text>
+              </View>
+            ) : (
+              <View>
+                {franchises.map((franchise, index) => {
+                  // Safeguard against invalid data
+                  if (!franchise || typeof franchise !== 'object') {
+                    console.error('Invalid franchise data:', franchise);
+                    return null;
+                  }
+                  
+                  return (
+                    <View 
+                      key={franchise._id || `franchise-${index}`} 
+                      style={styles.feedCardProfessional}
+                    >
+                      <View style={styles.feedCardTopRowProfessional}>
+                        <View style={styles.profilePicContainer}>
+                          <Image
+                            source={{
+                              uri:
+                                franchise.createdBy?.profilePicture ||
+                                "https://ui-avatars.com/api/?name=" +
+                                  (franchise.createdBy?.name || "F") +
+                                  "&background=E57373&color=fff",
+                            }}
+                            style={styles.profilePic}
+                          />
+                          <View style={styles.profileOnlineIndicator} />
+                        </View>
+                        <View style={styles.feedCardInfo}>
+                          <Text style={styles.feedAuthorNameProfessional}>
+                            {franchise.createdBy?.name || "Unknown"}
+                          </Text>
+                          <Text style={styles.feedAuthorEmail}>
+                            {franchise.createdBy?.email || ""}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.feedHeaderProfessional}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                          <Text style={styles.feedTitleProfessional}>
+                            {franchise.name}
+                          </Text>
+
+                        </View>
+                        <View style={[styles.industryBadge, {backgroundColor: '#6750A4'}]}>
+                          <Text style={[styles.feedIndustry, {color: 'white'}]}>{franchise.category}</Text>
+                        </View>
+                        <Text style={styles.franchiseLocation}>
+                          📍 {franchise.location || 'Location not specified'}
+                        </Text>
+                      </View>
+
+                      {franchise.image && franchise.image !== "" && (
+                        <View style={styles.franchiseImageContainer}>
+                          <Image
+                            source={{ uri: franchise.image }}
+                            style={styles.franchiseImage}
+                            resizeMode="cover"
+                            onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+                          />
+                        </View>
+                      )}
+
+                      <View style={styles.feedDescriptionContainer}>
+                        <Text style={styles.feedDescriptionProfessional}>
+                          {franchise.description || 'No description provided'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.franchiseContactContainer}>
+                        <Text style={styles.franchiseContactLabel}>Contact:</Text>
+                        <Text style={styles.franchiseContactInfo}>
+                          {typeof franchise.contact === 'string' ? 
+                            franchise.contact : 
+                            JSON.stringify(franchise.contact) || 'Contact information not available'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.franchiseDateContainer}>
+                        <Text style={styles.franchiseDate}>
+                          Posted: {franchise.formattedDate || (franchise.createdAt ? new Date(franchise.createdAt).toLocaleDateString() : 'Recently')}
+                        </Text>
+                      </View>
+
+                      <View style={styles.feedcardBottomProfessional}>
+                        <TouchableOpacity 
+                          style={styles.franchiseScheduleButton}
+                          onPress={() => {
+                            navigation.navigate("ScheduleScreen", {
+                              postCreator: franchise.createdBy,
+                              postType: 'franchise',
+                              postTitle: franchise.name
+                            });
+                          }}
+                        >
+                          <Text style={styles.franchiseScheduleButtonText}>
+                            � Request Schedule
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         ) : (
           <InvestorFeed />
         )}
@@ -846,7 +1092,7 @@ const HomeScreen = () => {
               {qrPostId && (
                 <View style={styles.qrCodeContainer}>
                   <QRCode
-                    value={`http://192.168.8.101:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                    value={`http://10.161.162.45:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                     size={220}
                     backgroundColor="white"
                     color="#6750A4"
@@ -1906,6 +2152,176 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "800",
     fontSize: 16,
+  },
+  franchiseLocation: {
+    color: "#555",
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: 8,
+  },
+  franchiseBadge: {
+    backgroundColor: "#FFECB3",
+    borderColor: "rgba(255, 152, 0, 0.3)",
+  },
+  franchiseImageContainer: {
+    marginVertical: 16,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  franchiseImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 16,
+  },
+  franchiseContactContainer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  franchiseContactLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#555",
+    marginBottom: 4,
+  },
+  franchiseContactInfo: {
+    fontSize: 15,
+    color: "#333",
+  },
+  franchiseScheduleButton: {
+    backgroundColor: "#6750A4",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    shadowColor: "#6750A4",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  franchiseScheduleButtonText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  refreshButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 8,
+    paddingHorizontal: 16, 
+    borderRadius: 20,
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  newBadge: {
+    backgroundColor: '#FF5722',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  newBadgeText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  franchiseDateContainer: {
+    borderTopWidth: 1, 
+    borderColor: '#eee', 
+    paddingTop: 8, 
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  franchiseDate: {
+    fontSize: 12, 
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  franchiseCountBadge: {
+    backgroundColor: '#E57373',
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  franchiseCountText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  newFranchiseCard: {
+    borderColor: '#FF5722',
+    borderWidth: 2,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  newFranchiseRibbon: {
+    position: 'absolute',
+    top: 15,
+    right: -35,
+    backgroundColor: '#FF5722',
+    paddingVertical: 5,
+    paddingHorizontal: 40,
+    transform: [{ rotate: '45deg' }],
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  newFranchiseRibbonText: {
+    color: 'white',
+    fontWeight: '900',
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  newFranchiseButton: {
+    backgroundColor: '#FF5722',
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
 

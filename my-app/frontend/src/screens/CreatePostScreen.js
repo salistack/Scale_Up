@@ -12,8 +12,10 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  Animated,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import eventBus from "../utils/eventBus";
 
 // Change Cloudinary config to be more forgiving
 const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
@@ -81,6 +83,29 @@ const CreatePostScreen = () => {
   const [expectedROI, setExpectedROI] = useState("");
   const [interestLevel, setInterestLevel] = useState("");
   const [investorDescription, setInvestorDescription] = useState("");
+  
+  // Franchise State
+  const [franchiseName, setFranchiseName] = useState("");
+  const [franchiseDescription, setFranchiseDescription] = useState("");
+  const [franchiseLocation, setFranchiseLocation] = useState("");
+  const [franchiseCategory, setFranchiseCategory] = useState("");
+  const [franchiseContact, setFranchiseContact] = useState("");
+  const [franchiseImage, setFranchiseImage] = useState(null); // no longer used in UI; kept to avoid broader refactors
+
+  // Lightweight toast for quick confirmations
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastAnim = React.useRef(new Animated.Value(0)).current;
+
+  const showToast = (message) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.delay(1600),
+      Animated.timing(toastAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => setToastVisible(false));
+  };
 
   const industries = [
     "Technology",
@@ -107,6 +132,16 @@ const CreatePostScreen = () => {
     "Insurance",
     "Legal",
     "Sports & Recreation",
+  ];
+  
+  // Franchise Categories
+  const franchiseCategories = [
+    "Food", 
+    "Retail", 
+    "Service", 
+    "Education", 
+    "Healthcare", 
+    "Other"
   ];
 
   useEffect(() => {
@@ -162,6 +197,44 @@ const CreatePostScreen = () => {
       setMentorLocalImages((prev) => [...prev, ...selected].slice(0, 6));
     }
   };
+  
+  // Pick Franchise Image
+  // pickFranchiseImage removed with image upload feature
+
+  // Validate Franchise Form Fields
+  const validateFranchiseForm = () => {
+    const errs = [];
+    const name = (franchiseName || "").trim();
+    const desc = (franchiseDescription || "").trim();
+    const loc = (franchiseLocation || "").trim();
+    const cat = (franchiseCategory || "").trim();
+    const contact = (franchiseContact || "").trim();
+
+    if (!name) errs.push("Franchise Name is required");
+    else if (name.length < 3) errs.push("Franchise Name must be at least 3 characters");
+
+    if (!desc) errs.push("Description is required");
+    else if (desc.length < 20) errs.push("Description must be at least 20 characters");
+
+    if (!loc) errs.push("Location is required");
+    else if (loc.length < 2) errs.push("Location is too short");
+
+    if (!cat) errs.push("Category is required");
+    else if (!franchiseCategories.includes(cat)) errs.push("Invalid category selection");
+
+    if (!contact) errs.push("Contact information is required");
+    else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+      const digits = contact.replace(/\D/g, "");
+      const looksLikeEmail = emailRegex.test(contact);
+      const looksLikePhone = digits.length >= 7; // lenient phone check
+      if (!looksLikeEmail && !looksLikePhone) {
+        errs.push("Contact must include a valid email or phone number");
+      }
+    }
+
+    return errs;
+  };
 
   // Entrepreneur Post Handler
   const handlePost = async () => {
@@ -204,7 +277,7 @@ const CreatePostScreen = () => {
       }
 
       const response = await fetch(
-        "http://192.168.8.101:5000/api/entrepreneur/posts",
+        "http://10.161.162.45:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -252,7 +325,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://192.168.8.101:5000/api/mentors", {
+      const res = await fetch("http://10.161.162.45:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -286,7 +359,9 @@ const CreatePostScreen = () => {
       setMentorBrief("");
       setMentorLocalImages([]);
 
-      navigation.navigate("HomeTabs");
+  // Emit event for immediate home refresh
+  eventBus.emit("mentor:changed", { type: "create" });
+  navigation.navigate("HomeTabs");
     } catch (err) {
       console.error("Submission error:", err);
       Alert.alert("Error", err.message || "Failed to create post.");
@@ -317,7 +392,7 @@ const CreatePostScreen = () => {
         description: investorDescription,
       };
 
-      const response = await fetch("http://192.168.8.101:5000/api/proposals", {
+      const response = await fetch("http://10.161.162.45:5000/api/proposals", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -340,6 +415,137 @@ const CreatePostScreen = () => {
       }
     } catch (err) {
       Alert.alert("Error", err.message);
+    }
+  };
+  
+  // Franchise Submit Handler
+  const handleFranchiseSubmit = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Please log in first");
+        return;
+      }
+      
+      // Validate fields with detailed messages
+      const validationErrors = validateFranchiseForm();
+      if (validationErrors.length > 0) {
+        const message = "Please fix the following:\n\n• " + validationErrors.join("\n• ");
+        Alert.alert("Validation", message);
+        showToast("Please correct the form");
+        return;
+      }
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append("name", franchiseName);
+      formData.append("description", franchiseDescription);
+      formData.append("location", franchiseLocation);
+      formData.append("category", franchiseCategory);
+      formData.append("contact", franchiseContact);
+      
+      // Image upload removed by request: no image is sent with the franchise form
+      
+  console.log("Submitting franchise form...");
+  // Small non-blocking popup for immediate feedback
+  showToast("Submitting franchise…");
+
+      // Franchise-specific API base resolution with fallbacks (do not change other flows)
+      const candidateBases = [
+        "http://10.161.162.45:5000", // existing LAN IP
+        "http://10.0.2.2:5000",    // Android emulator to host loopback
+        "http://localhost:5000",   // Web/local
+      ];
+
+      // Try endpoints sequentially until one succeeds
+      let response;
+      let lastError;
+      for (const base of candidateBases) {
+        try {
+          console.log(`Trying franchise create at: ${base}`);
+          response = await fetch(`${base}/api/franchise/create`, {
+            method: "POST",
+            headers: {
+              // Do NOT set Content-Type manually for multipart/form-data.
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+          if (response && response.ok) {
+            break; // success path
+          }
+          // If non-2xx, capture text for diagnostics and continue trying next base
+          const errText = await response.text();
+          lastError = new Error(`HTTP ${response.status} at ${base}: ${errText}`);
+          console.warn("Franchise create failed on base", base, lastError.message);
+        } catch (e) {
+          lastError = e;
+          console.warn("Network error on", base, e?.message || String(e));
+        }
+      }
+      if (!response) {
+        throw lastError || new Error("No response from any API base");
+      }
+      
+      console.log("Response status:", response.status);
+      // Log a subset of headers for debugging
+      try {
+        const headerDump = {};
+        response.headers && response.headers.forEach && response.headers.forEach((v, k) => headerDump[k] = v);
+        console.log("Response headers:", headerDump);
+      } catch {}
+      const responseText = await response.text();
+      console.log("Raw response text:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Error parsing response:", e);
+        Alert.alert("Error", "Invalid response from server");
+        return;
+      }
+      
+  if (response.ok && data && data.success) {
+        // Reset form immediately on success
+        setFranchiseName("");
+        setFranchiseDescription("");
+        setFranchiseLocation("");
+        setFranchiseCategory("");
+        setFranchiseContact("");
+        setFranchiseImage(null);
+
+        // Quick visual confirmation
+        showToast("Franchise created successfully");
+        Alert.alert(
+          "Success", 
+          "🎉 Franchise created successfully!\n\nYou'll receive notifications when investors schedule meetings with you.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Emit event for immediate home refresh
+                eventBus.emit("franchise:changed", { type: "create" });
+                navigation.navigate("HomeTabs");
+              }
+            }
+          ]
+        );
+      } else {
+        console.error("API Error Response:", data);
+        const baseMsg = data && (data.message || data.msg);
+        let detail = baseMsg || `Failed to create franchise (status ${response.status}).`;
+        if (response.status === 401) detail = "Authentication failed. Please log in again.";
+        if (response.status === 400 && baseMsg) detail = baseMsg;
+        Alert.alert("Error", detail);
+      }
+    } catch (err) {
+      console.error("Franchise Submit Error:", err);
+      showToast("Failed to create franchise");
+      Alert.alert(
+        "Error", 
+        "An error occurred while creating the franchise. Please check your internet connection and try again."
+      );
     }
   };
 
@@ -600,42 +806,7 @@ const CreatePostScreen = () => {
               onChangeText={setMentorBrief}
             />
 
-            <Text style={styles.label}>
-              Photos (Optional - currently disabled)
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {mentorLocalImages.map((u, i) => (
-                <TouchableOpacity
-                  key={u + i}
-                  onLongPress={() =>
-                    setMentorLocalImages((prev) =>
-                      prev.filter((_, idx) => idx !== i)
-                    )
-                  }
-                  style={{ marginRight: 8, marginBottom: 8 }}
-                >
-                  <Image source={{ uri: u }} style={styles.imageThumb} />
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert(
-                    "Image Upload Disabled",
-                    "Image uploads have been temporarily disabled due to Cloudinary configuration issues. You can still submit the form without images."
-                  )
-                }
-                style={[
-                  styles.chip,
-                  {
-                    borderStyle: "dashed",
-                    borderWidth: 1,
-                    borderColor: "#bbb",
-                  },
-                ]}
-              >
-                <Text style={{ color: "#999" }}>Images Disabled</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Mentor images UI removed by request */}
 
             <TouchableOpacity
               style={[styles.postButton, mentorSubmitting && { opacity: 0.7 }]}
@@ -744,13 +915,95 @@ const CreatePostScreen = () => {
         )}
 
         {activeForm === "franchise" && (
-          <View style={styles.placeholderForm}>
-            <Text style={styles.placeholderText}>
-              Franchise Owner Form (to be implemented)
-            </Text>
-          </View>
+          <>
+            <Text style={styles.label}>Franchise Name</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your franchise name"
+              value={franchiseName}
+              onChangeText={setFranchiseName}
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.inputField, { height: 100 }]}
+              placeholder="Describe your franchise opportunity"
+              multiline
+              value={franchiseDescription}
+              onChangeText={setFranchiseDescription}
+            />
+
+            <Text style={styles.label}>Location</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter franchise location"
+              value={franchiseLocation}
+              onChangeText={setFranchiseLocation}
+            />
+
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={franchiseCategory}
+                onValueChange={(itemValue) => setFranchiseCategory(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Category" value="" />
+                {franchiseCategories.map((category) => (
+                  <Picker.Item key={category} label={category} value={category} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Contact Information</Text>
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter contact information (phone, email)"
+              value={franchiseContact}
+              onChangeText={setFranchiseContact}
+            />
+
+            <TouchableOpacity style={styles.postButton} onPress={handleFranchiseSubmit}>
+              <Text style={styles.postButtonText}>Create Franchise</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.discardButton}
+              onPress={() => {
+                setFranchiseName("");
+                setFranchiseDescription("");
+                setFranchiseLocation("");
+                setFranchiseCategory("");
+                setFranchiseContact("");
+                setFranchiseImage(null);
+              }}
+            >
+              <Text style={styles.discardButtonText}>Discard</Text>
+            </TouchableOpacity>
+          </>
         )}
       </ScrollView>
+      {toastVisible && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.toast,
+            {
+              opacity: toastAnim,
+              transform: [
+                {
+                  translateY: toastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [40, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 };
@@ -946,6 +1199,28 @@ const styles = StyleSheet.create({
     height: 86,
     borderRadius: 10,
     backgroundColor: "#eee",
+  },
+  toast: {
+    position: "absolute",
+    bottom: 28,
+    left: 20,
+    right: 20,
+    backgroundColor: "#323232",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 

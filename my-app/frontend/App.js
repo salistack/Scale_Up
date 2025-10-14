@@ -10,6 +10,8 @@ import InvestorForm from "./src/screens/InvestorForm";
 import InvestorFeed from "./src/screens/InvestorFeed";
 import EditProposal from "./src/screens/EditProposal";
 import CreatePostScreen from "./src/screens/CreatePostScreen";
+import ScheduleScreen from "./src/screens/ScheduleScreen";
+import CalendarScreen from "./src/screens/CalendarScreen";
 
 // Import Bottom Tabs
 import BottomTabs from "./src/navigation/BottomTabs";
@@ -54,6 +56,16 @@ export default function App() {
             name="CreatePostScreen"
             component={CreatePostScreen}
             options={{ title: "Create Post" }}
+          />
+          <Stack.Screen
+            name="ScheduleScreen"
+            component={ScheduleScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CalendarScreen"
+            component={CalendarScreen}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>

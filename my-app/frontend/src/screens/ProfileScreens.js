@@ -12,9 +12,11 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import eventBus from "../utils/eventBus";
 
 const ProfileScreens = () => {
   const navigation = useNavigation();
@@ -38,6 +40,29 @@ const ProfileScreens = () => {
   const [editedSector, setEditedSector] = useState("");
   const [editedYears, setEditedYears] = useState("");
 
+  // Franchise edit modal state
+  const [editFranchiseModal, setEditFranchiseModal] = useState(false);
+  const [fName, setFName] = useState("");
+  const [fDesc, setFDesc] = useState("");
+  const [fLoc, setFLoc] = useState("");
+  const [fCat, setFCat] = useState("");
+  const [fContact, setFContact] = useState("");
+
+  // Toast for small popups (like create franchise)
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastAnim = React.useRef(new Animated.Value(0)).current;
+
+  const showToast = (message) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.delay(1400),
+      Animated.timing(toastAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => setToastVisible(false));
+  };
+
   const SECTORS = [
     "Travel",
     "Automotive",
@@ -55,7 +80,7 @@ const ProfileScreens = () => {
         const token = await AsyncStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch("http://192.168.8.101:5000/api/auth/me", {
+        const res = await fetch("http://10.161.162.45:5000/api/auth/me", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -82,21 +107,22 @@ const ProfileScreens = () => {
   }, []);
 
   // Direct delete function with immediate feedback
-  const handleDeletePost = async (postId) => {
-    console.log("DELETE BUTTON CLICKED - postId:", postId);
-    
+  const handleDeletePost = async (postOrId) => {
+    const postId = typeof postOrId === 'string' ? postOrId : postOrId?._id;
+    const isFranchise = typeof postOrId === 'object' && postOrId && ((postOrId._kind === 'franchise') || postOrId.location || postOrId.contact || postOrId.category);
+    console.log("DELETE BUTTON CLICKED - postId:", postId, "isFranchise:", !!isFranchise);
+
     if (!postId) {
       console.log("ERROR: No postId provided");
       Alert.alert("Error", "Cannot delete post: missing post ID");
       return;
     }
-    
     // Immediately perform delete without confirmation
-    performDelete(postId);
+    performDelete(postId, isFranchise === true);
   };
 
   // Separate function to perform the actual delete
-  const performDelete = async (postId) => {
+  const performDelete = async (postId, isFranchise = false) => {
     console.log("PERFORMING DELETE for postId:", postId);
     
     try {
@@ -109,8 +135,9 @@ const ProfileScreens = () => {
       }
       
       console.log("Making DELETE request...");
-      
-      const deleteUrl = `http://192.168.8.101:5000/api/mentors/${postId}`;
+      const deleteUrl = isFranchise
+        ? `http://10.161.162.45:5000/api/franchise/delete/${postId}`
+        : `http://10.161.162.45:5000/api/mentors/${postId}`;
       console.log("DELETE URL:", deleteUrl);
       
       const response = await fetch(deleteUrl, {
@@ -136,8 +163,9 @@ const ProfileScreens = () => {
           console.log("Posts after delete:", newPosts.length);
           return newPosts;
         });
-        
-        Alert.alert("Success", "Post deleted successfully!");
+        // Notify Home to refresh relevant feed
+        eventBus.emit(isFranchise ? "franchise:changed" : "mentor:changed", { type: "delete", id: postId });
+        showToast("Post deleted");
       } else {
         console.log("DELETE FAILED - Status:", response.status);
         Alert.alert("Delete Failed", `Server returned status: ${response.status}\nResponse: ${responseText}`);
@@ -149,7 +177,7 @@ const ProfileScreens = () => {
     }
   };
 
-  // Function to fetch user posts
+  // Function to fetch user posts (mentor + franchise)
   const fetchUserPosts = async () => {
     setPostsLoading(true);
     try {
@@ -163,59 +191,76 @@ const ProfileScreens = () => {
         return;
       }
 
-      // Generate random string to prevent caching
-      const cacheBuster = Math.random().toString(36).substring(2);
-      const url = `http://192.168.8.101:5000/api/mentors?nocache=${Date.now()}&rand=${cacheBuster}`;
-      
-      console.log(`Fetching posts from: ${url}`);
-      
-      const res = await fetch(url, {
+      // Endpoints
+      const mentorUrl = `http://10.161.162.45:5000/api/mentors?nocache=${Date.now()}`;
+      const franUrl = `http://10.161.162.45:5000/api/franchise/all?nocache=${Date.now()}`;
+      console.log(`Fetching mentors: ${mentorUrl}`);
+      console.log(`Fetching franchises: ${franUrl}`);
+
+      // Fetch in sequence to keep logs tidy (fast enough)
+      const mentorRes = await fetch(mentorUrl, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache, no-store, must-revalidate",
           "Pragma": "no-cache",
-          "Expires": "0"
+          "Expires": "0",
         },
       });
-
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}: ${await res.text()}`);
+      if (!mentorRes.ok) {
+        console.warn("Mentor fetch failed", mentorRes.status);
       }
+      const mentorData = mentorRes.ok ? await mentorRes.json().catch(() => []) : [];
+      const mentors = Array.isArray(mentorData) ? mentorData : (mentorData.mentors || []);
+      console.log(`Mentors received: ${mentors.length}`);
 
-      const data = await res.json();
-      console.log(`Received ${Array.isArray(data) ? data.length : 0} posts from server`);
-      
+      const franRes = await fetch(franUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      });
+      if (!franRes.ok) {
+        const t = await franRes.text();
+        throw new Error(`Franchise fetch ${franRes.status}: ${t}`);
+      }
+      const franJson = await franRes.json();
+      const franchises = Array.isArray(franJson) ? franJson : (franJson.franchises || []);
+      console.log(`Franchises received: ${franchises.length}`);
+
       // Get user details
       const userData = await AsyncStorage.getItem("user");
       const user = userData ? JSON.parse(userData) : {};
-      
-      if (!user._id) {
-        console.log("Warning: No user ID available for filtering posts");
-      } else {
-        console.log(`Filtering posts for user ID: ${user._id}`);
-      }
-      
-      // Handle different response formats and filter
-      const postsArray = Array.isArray(data) ? data : (data.posts || []);
-      
-      const filteredPosts = user._id 
-        ? postsArray.filter(post => {
-            const postUserId = post.user?._id || post.userId || post.author?._id;
-            const isOwner = postUserId === user._id;
-            if (isOwner) {
-              console.log(`Found matching post: ${post._id} (${post.title || 'Untitled'})`);
-            }
-            return isOwner;
+
+      // Filter my mentors (best-effort; schema may not include owner)
+      const myMentors = user._id
+        ? mentors.filter(m => {
+            const ownerId = m.user?._id || m.userId || m.author?._id || m.createdBy;
+            return ownerId ? String(ownerId) === String(user._id) : true; // fallback: include if unknown
           })
-        : postsArray;
-      
-      console.log(`Displaying ${filteredPosts.length} posts for current user`);
-      
-      setUserPosts(filteredPosts);
+        : mentors;
+
+      // Filter my franchises by createdBy
+      const myFranchises = user._id
+        ? franchises.filter(fr => {
+            const createdById = (fr.createdBy && (fr.createdBy._id || fr.createdBy)) || fr.userId;
+            return String(createdById) === String(user._id);
+          })
+        : franchises;
+
+      // Tag types and merge
+      const typedMentors = myMentors.map(m => ({ ...m, _kind: 'mentor' }));
+      const typedFranches = myFranchises.map(f => ({ ...f, _kind: 'franchise' }));
+      const merged = [...typedFranches, ...typedMentors].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+
+      console.log(`Displaying ${merged.length} posts for current user`);
+      setUserPosts(merged);
       setShowPosts(true);
     } catch (err) {
-      console.error("Error fetching posts:", err);
+      console.error("Error fetching franchises:", err);
       Alert.alert(
         "Error Loading Posts", 
         err.message || "Could not load your posts. Please try again."
@@ -225,7 +270,7 @@ const ProfileScreens = () => {
     }
   };
 
-  // Function to open edit modal with post data
+  // Open mentor edit modal (kept for mentor-specific posts if needed elsewhere)
   const handleEditPost = (post) => {
     setSelectedPost(post);
     setEditedTitle(post.title || '');
@@ -236,6 +281,17 @@ const ProfileScreens = () => {
       ? post.experienceYears.toString() 
       : '0');
     setEditPostModal(true);
+  };
+
+  // Open franchise edit modal
+  const handleEditFranchise = (post) => {
+    setSelectedPost(post);
+    setFName(post.name || "");
+    setFDesc(post.description || "");
+    setFLoc(post.location || "");
+    setFCat(post.category || "");
+    setFContact(post.contact || "");
+    setEditFranchiseModal(true);
   };
 
   // Function to update a post
@@ -256,7 +312,7 @@ const ProfileScreens = () => {
         experienceYears: expYears,
       };
 
-      const res = await fetch(`http://192.168.8.101:5000/api/mentors/${selectedPost._id}`, {
+      const res = await fetch(`http://10.161.162.45:5000/api/mentors/${selectedPost._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -278,7 +334,9 @@ const ProfileScreens = () => {
           : post
       );
       
-      setUserPosts(updatedPosts);
+  setUserPosts(updatedPosts);
+  // Notify Home to refresh mentors feed
+  eventBus.emit("mentor:changed", { type: "update", id: selectedPost._id });
       setEditPostModal(false);
       Alert.alert("Success", "Post updated successfully");
     } catch (err) {
@@ -287,12 +345,75 @@ const ProfileScreens = () => {
     }
   };
 
+  // Validate franchise fields (lightweight)
+  const validateFranchise = () => {
+    const errs = [];
+    if (!fName || fName.trim().length < 3) errs.push("Name must be at least 3 chars");
+    if (!fDesc || fDesc.trim().length < 20) errs.push("Description must be at least 20 chars");
+    if (!fLoc || fLoc.trim().length < 2) errs.push("Location is too short");
+    const CATS = ["Food","Retail","Service","Education","Healthcare","Other"];
+    if (!fCat || !CATS.includes(fCat)) errs.push("Select a valid category");
+    if (!fContact || fContact.trim().length < 5) errs.push("Provide contact info");
+    return errs;
+  };
+
+  // Update franchise
+  const handleUpdateFranchise = async () => {
+    if (!selectedPost || !selectedPost._id) return;
+    const errors = validateFranchise();
+    if (errors.length) {
+      Alert.alert("Validation", "Please fix:\n\n• " + errors.join("\n• "));
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Login required");
+        return;
+      }
+
+      const body = {
+        name: fName.trim(),
+        description: fDesc.trim(),
+        location: fLoc.trim(),
+        category: fCat,
+        contact: fContact.trim(),
+      };
+
+      const res = await fetch(`http://10.161.162.45:5000/api/franchise/update/${selectedPost._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        Alert.alert("Error", data.message || data.msg || `Failed with ${res.status}`);
+        return;
+      }
+
+      // Update local state
+  setUserPosts((prev) => prev.map((p) => (p._id === selectedPost._id ? { ...p, ...body } : p)));
+      setEditFranchiseModal(false);
+  // Notify Home to refresh franchise feed
+  eventBus.emit("franchise:changed", { type: "update", id: selectedPost._id });
+      showToast("Franchise updated");
+    } catch (e) {
+      console.error("Update franchise error", e);
+      Alert.alert("Error", "Could not update franchise");
+    }
+  };
+
   const handleUpdateProfile = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const res = await fetch("http://192.168.8.101:5000/api/auth/update", {
+      const res = await fetch("http://10.161.162.45:5000/api/auth/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -350,37 +471,45 @@ const ProfileScreens = () => {
     }
   };
 
-  // Update the renderPostItem function to show post ID for debugging
+  // Render a post card (franchise-aware)
   const renderPostItem = ({ item }) => {
-    const postTitle =
-      item.title ||
-      (item.name ? `${item.name}'s post` : null) ||
-      item.heading ||
-      "Untitled Post";
-
-    // Debug text to show post ID
+  const isFranchise = !!(item && ((item._kind === 'franchise') || item.location || item.contact || item.category));
     const debugId = item._id ? `ID: ${item._id.slice(-6)}` : 'No ID';
 
+    if (isFranchise) {
+      return (
+        <View style={styles.postCard} key={item._id || Math.random().toString()}>
+          <Text style={styles.postTitle}>{item.name || "Untitled Franchise"}</Text>
+          <Text style={styles.postSector}>Category: {item.category || "Not specified"}</Text>
+          <Text style={styles.postYears}>Location: {item.location || "N/A"}</Text>
+          <Text style={styles.postBio}>{item.description || "No description provided"}</Text>
+          <Text style={styles.debugText}>{debugId}</Text>
+          <View style={styles.postActions}>
+            <TouchableOpacity style={[styles.postActionButton, styles.editButton]} onPress={() => handleEditFranchise(item)}>
+              <Text style={styles.postActionText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.postActionButton, styles.deleteButton]} onPress={() => handleDeletePost(item)}>
+              <Text style={styles.postActionText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // Fallback (mentor-style)
+    const postTitle = item.title || (item.name ? `${item.name}'s post` : null) || item.heading || "Untitled Post";
     return (
       <View style={styles.postCard} key={item._id || Math.random().toString()}>
         <Text style={styles.postTitle}>{postTitle}</Text>
         <Text style={styles.postSector}>Sector: {item.expertise || item.sector || "Not specified"}</Text>
-        <Text style={styles.postYears}>
-          Experience: {item.experienceYears !== undefined ? item.experienceYears : "N/A"} years
-        </Text>
+        <Text style={styles.postYears}>Experience: {item.experienceYears !== undefined ? item.experienceYears : "N/A"} years</Text>
         <Text style={styles.postBio}>{item.bio || item.description || "No description provided"}</Text>
         <Text style={styles.debugText}>{debugId}</Text>
         <View style={styles.postActions}>
-          <TouchableOpacity
-            style={[styles.postActionButton, styles.editButton]}
-            onPress={() => handleEditPost(item)}
-          >
+          <TouchableOpacity style={[styles.postActionButton, styles.editButton]} onPress={() => handleEditPost(item)}>
             <Text style={styles.postActionText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.postActionButton, styles.deleteButton]}
-            onPress={() => handleDeletePost(item._id)}
-          >
+          <TouchableOpacity style={[styles.postActionButton, styles.deleteButton]} onPress={() => handleDeletePost(item)}>
             <Text style={styles.postActionText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -738,6 +867,110 @@ const ProfileScreens = () => {
           </View>
         </View>
       </Modal>
+      {/* Edit Franchise Modal */}
+      <Modal
+        visible={editFranchiseModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditFranchiseModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Franchise</Text>
+
+            <Text style={styles.modalLabel}>Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={fName}
+              onChangeText={setFName}
+              placeholder="Franchise name"
+            />
+
+            <Text style={styles.modalLabel}>Description</Text>
+            <TextInput
+              style={[styles.modalInput, styles.bioInput]}
+              value={fDesc}
+              onChangeText={setFDesc}
+              placeholder="Describe the franchise"
+              multiline
+            />
+
+            <Text style={styles.modalLabel}>Location</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={fLoc}
+              onChangeText={setFLoc}
+              placeholder="Location"
+            />
+
+            <Text style={styles.modalLabel}>Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sectorScroll}>
+              {['Food','Retail','Service','Education','Healthcare','Other'].map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.sectorChip, fCat === cat && styles.sectorChipActive]}
+                  onPress={() => setFCat(cat)}
+                >
+                  <Text style={[styles.sectorChipText, fCat === cat && styles.sectorChipTextActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.modalLabel}>Contact</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={fContact}
+              onChangeText={setFContact}
+              placeholder="Email or phone"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancelButton]} 
+                onPress={() => setEditFranchiseModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalSaveButton]} 
+                onPress={handleUpdateFranchise}
+              >
+                <Text style={styles.modalSaveText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Small toast popup */}
+      {toastVisible && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            bottom: 28,
+            left: 20,
+            right: 20,
+            backgroundColor: '#323232',
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 4,
+            elevation: 5,
+            opacity: toastAnim,
+            transform: [{
+              translateY: toastAnim.interpolate({ inputRange: [0,1], outputRange: [40,0] })
+            }]
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -1052,8 +1285,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
-
-  // My Posts Section
+  // My Posts Section styles
   postsSection: {
     padding: 16,
     backgroundColor: "#F0F2F5",
@@ -1092,6 +1324,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  noPostsContainer: {
+    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    padding: 30,
+    borderRadius: 12,
+  },
+  noPostsText: {
+    color: "#1C1E21",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  createFirstPostBtn: {
+    backgroundColor: "#6750A4",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  createFirstPostText: {
+    color: "white",
+    fontWeight: "600",
+  },
+  loader: { marginTop: 12 },
   noPostsContainer: {
     alignItems: 'center',
     backgroundColor: "#FFFFFF",
