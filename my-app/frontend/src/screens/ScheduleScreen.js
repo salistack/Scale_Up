@@ -303,7 +303,12 @@ const ScheduleScreen = ({ route }) => {
         <Text style={styles.headerTitle}>Schedule Meeting</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Calendar Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Date</Text>
@@ -363,14 +368,19 @@ const ScheduleScreen = ({ route }) => {
           </Text>
         </View>
 
-        {/* Schedule Button */}
+        {/* Spacer handled by contentContainer paddingBottom */}
+      </ScrollView>
+
+      {/* Fixed Footer with Schedule Button */}
+      <View style={styles.footerBar}>
         <TouchableOpacity 
           style={styles.scheduleButton}
           onPress={handleSchedule}
+          activeOpacity={0.85}
         >
           <Text style={styles.scheduleButtonText}>📅 Schedule Meeting</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       {/* Toast Notification */}
       {showToast && (
@@ -426,6 +436,26 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  contentContainer: {
+    paddingBottom: 120,
+  },
+  footerBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 8,
   },
   section: {
     marginBottom: 30,

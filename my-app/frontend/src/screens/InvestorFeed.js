@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native"; // Added
@@ -18,6 +22,13 @@ const InvestorFeed = () => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  // ROI calculator states
+  const [roiModalVisible, setRoiModalVisible] = useState(false);
+  const [roiInitial, setRoiInitial] = useState("");
+  const [roiFinal, setRoiFinal] = useState("");
+  const [roiResult, setRoiResult] = useState(null);
+  const [roiForProposal, setRoiForProposal] = useState(null); // optional: tie to a proposal id
 
   useEffect(() => {
     const load = async () => {
@@ -33,7 +44,7 @@ const InvestorFeed = () => {
           }
         }
 
-        const res = await fetch("http://172.27.96.1:5000/api/proposals", {
+        const res = await fetch("http://10.161.162.45:5000/api/proposals", {
           headers: { "Content-Type": "application/json" },
         });
         if (!res.ok) {
@@ -69,7 +80,7 @@ const InvestorFeed = () => {
         const hostFromPackager = debuggerHost.split(":")[0];
         if (hostFromPackager) hosts.push(hostFromPackager);
       }
-      hosts.push("172.27.96.1", "localhost", "127.0.0.1", "10.0.2.2");
+      hosts.push("10.161.162.45", "localhost", "127.0.0.1", "10.0.2.2");
 
       let lastErr = null;
       let ok = false;
@@ -124,7 +135,7 @@ const InvestorFeed = () => {
               }
 
               const res = await fetch(
-                `http://172.27.96.1:5000/api/proposals/${id}`,
+                `http://10.161.162.45:5000/api/proposals/${id}`,
                 {
                   method: "DELETE",
                   headers: {
@@ -165,6 +176,63 @@ const InvestorFeed = () => {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
     return `${Math.floor(diff / 604800)}w`;
+  };
+
+  // ROI calculation helpers
+  const openRoiCalculator = (proposal = null) => {
+    setRoiForProposal(proposal?._id || null);
+
+    // prefill initial value if the proposal has investmentAmount
+    const amt = proposal?.investmentAmount ?? "";
+    setRoiInitial(amt ? String(amt) : "");
+
+    // prefill expected ROI to help user if available
+    if (proposal?.expectedROI) {
+      const expected = Number(proposal.expectedROI);
+      if (!isNaN(expected) && amt) {
+        const initial = Number(amt);
+        const final = initial * (1 + expected / 100);
+        setRoiFinal(String(Number(final.toFixed(2))));
+      }
+    } else {
+      setRoiFinal("");
+    }
+
+    setRoiResult(null);
+    setRoiModalVisible(true);
+  };
+
+  const calculateRoi = () => {
+    const initial = Number(roiInitial);
+    const final = Number(roiFinal);
+
+    if (!roiInitial || isNaN(initial) || initial <= 0) {
+      Alert.alert("Invalid input", "Please enter a valid initial investment (>0)");
+      return;
+    }
+
+    if (!roiFinal || isNaN(final) || final < 0) {
+      Alert.alert("Invalid input", "Please enter a valid final value (>=0)");
+      return;
+    }
+
+    const profit = final - initial;
+    const roiPercent = (profit / initial) * 100;
+
+    const result = {
+      initial: initial,
+      final: final,
+      profit: Number(profit.toFixed(2)),
+      roiPercent: Number(roiPercent.toFixed(2)),
+    };
+
+    setRoiResult(result);
+  };
+
+  const resetRoi = () => {
+    setRoiInitial("");
+    setRoiFinal("");
+    setRoiResult(null);
   };
 
   return (
@@ -223,9 +291,7 @@ const InvestorFeed = () => {
                     <Text style={styles.fundingType}>
                       {p.fundingType || "Investment"}
                     </Text>
-                    <Text style={styles.amount}>
-                      {p.investmentAmount || "-"}
-                    </Text>
+                    <Text style={styles.amount}>{p.investmentAmount || "-"}</Text>
                   </View>
                   <View style={styles.roiBadge}>
                     <Text style={styles.roiText}>
@@ -275,6 +341,14 @@ const InvestorFeed = () => {
 
                   <TouchableOpacity
                     style={styles.actionBtn}
+                    onPress={() => openRoiCalculator(p)}
+                  >
+                    <Text style={styles.actionIcon}>📊</Text>
+                    <Text style={styles.actionText}>ROI</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionBtn}
                     onPress={() =>
                       Alert.alert(
                         "Saved",
@@ -315,9 +389,7 @@ const InvestorFeed = () => {
                             style={styles.ownerBtn}
                             onPress={() => handleEdit(p)}
                           >
-                            <Text style={styles.ownerBtnText}>
-                              ✏️ Edit Post
-                            </Text>
+                            <Text style={styles.ownerBtnText}>✏️ Edit Post</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -341,11 +413,83 @@ const InvestorFeed = () => {
           })
         )}
       </ScrollView>
+
+      {/* ROI Calculator Modal */}
+      <Modal
+        visible={roiModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setRoiModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>ROI Calculator</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter Initial Investment and Final Value to compute ROI
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Initial investment (e.g. 10000)"
+              keyboardType="numeric"
+              value={String(roiInitial)}
+              onChangeText={(t) => setRoiInitial(t)}
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Final value (e.g. 12000)"
+              keyboardType="numeric"
+              value={String(roiFinal)}
+              onChangeText={(t) => setRoiFinal(t)}
+            />
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { flex: 1, marginRight: 6 }]}
+                onPress={calculateRoi}
+              >
+                <Text style={styles.modalBtnText}>Calculate</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtn, { flex: 1, marginLeft: 6, backgroundColor: '#eee' }]}
+                onPress={() => {
+                  resetRoi();
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: '#333' }]}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+
+            {roiResult && (
+              <View style={styles.resultBox}>
+                <Text style={styles.resultText}>
+                  Profit: {roiResult.profit} ({roiResult.roiPercent}%)
+                </Text>
+                <Text style={styles.resultSmall}>
+                  Initial: {roiResult.initial} · Final: {roiResult.final}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalBtn, { marginTop: 12 }]}
+              onPress={() => setRoiModalVisible(false)}
+            >
+              <Text style={styles.modalBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-// Styles remain the same...
+// Styles remain the same with a few additions for modal
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -599,6 +743,66 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     color: "#E53935",
+  },
+
+  /* modal styles */
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    padding: 16,
+  },
+  modalContainer: {
+    width: "100%",
+    maxWidth: 520,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: "#666",
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    fontSize: 15,
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    marginTop: 4,
+  },
+  modalBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#6750A4",
+    alignItems: "center",
+  },
+  modalBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  resultBox: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#F7F5FF",
+    borderRadius: 8,
+  },
+  resultText: {
+    fontWeight: "700",
+  },
+  resultSmall: {
+    color: "#666",
+    marginTop: 6,
   },
 });
 

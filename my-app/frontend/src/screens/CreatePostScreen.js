@@ -15,6 +15,7 @@ import {
   Animated,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import eventBus from "../utils/eventBus";
 
 // Change Cloudinary config to be more forgiving
 const CLOUDINARY_CLOUD_NAME = "dpgsqqr9j";
@@ -276,7 +277,7 @@ const CreatePostScreen = () => {
       }
 
       const response = await fetch(
-        "http://172.27.96.1:5000/api/entrepreneur/posts",
+        "http://10.161.162.45:5000/api/entrepreneur/posts",
         {
           method: "POST",
           headers: {
@@ -324,7 +325,7 @@ const CreatePostScreen = () => {
 
       console.log("Submitting mentor data:", mentorData);
 
-      const res = await fetch("http://172.27.96.1:5000/api/mentors", {
+      const res = await fetch("http://10.161.162.45:5000/api/mentors", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -358,7 +359,9 @@ const CreatePostScreen = () => {
       setMentorBrief("");
       setMentorLocalImages([]);
 
-      navigation.navigate("HomeTabs");
+  // Emit event for immediate home refresh
+  eventBus.emit("mentor:changed", { type: "create" });
+  navigation.navigate("HomeTabs");
     } catch (err) {
       console.error("Submission error:", err);
       Alert.alert("Error", err.message || "Failed to create post.");
@@ -389,7 +392,7 @@ const CreatePostScreen = () => {
         description: investorDescription,
       };
 
-      const response = await fetch("http://172.27.96.1:5000/api/proposals", {
+      const response = await fetch("http://10.161.162.45:5000/api/proposals", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -449,7 +452,7 @@ const CreatePostScreen = () => {
 
       // Franchise-specific API base resolution with fallbacks (do not change other flows)
       const candidateBases = [
-        "http://172.27.96.1:5000", // existing LAN IP
+        "http://10.161.162.45:5000", // existing LAN IP
         "http://10.0.2.2:5000",    // Android emulator to host loopback
         "http://localhost:5000",   // Web/local
       ];
@@ -503,7 +506,7 @@ const CreatePostScreen = () => {
         return;
       }
       
-      if (response.ok && data && data.success) {
+  if (response.ok && data && data.success) {
         // Reset form immediately on success
         setFranchiseName("");
         setFranchiseDescription("");
@@ -521,6 +524,8 @@ const CreatePostScreen = () => {
             {
               text: "OK",
               onPress: () => {
+                // Emit event for immediate home refresh
+                eventBus.emit("franchise:changed", { type: "create" });
                 navigation.navigate("HomeTabs");
               }
             }
@@ -801,42 +806,7 @@ const CreatePostScreen = () => {
               onChangeText={setMentorBrief}
             />
 
-            <Text style={styles.label}>
-              Photos (Optional - currently disabled)
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {mentorLocalImages.map((u, i) => (
-                <TouchableOpacity
-                  key={u + i}
-                  onLongPress={() =>
-                    setMentorLocalImages((prev) =>
-                      prev.filter((_, idx) => idx !== i)
-                    )
-                  }
-                  style={{ marginRight: 8, marginBottom: 8 }}
-                >
-                  <Image source={{ uri: u }} style={styles.imageThumb} />
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert(
-                    "Image Upload Disabled",
-                    "Image uploads have been temporarily disabled due to Cloudinary configuration issues. You can still submit the form without images."
-                  )
-                }
-                style={[
-                  styles.chip,
-                  {
-                    borderStyle: "dashed",
-                    borderWidth: 1,
-                    borderColor: "#bbb",
-                  },
-                ]}
-              >
-                <Text style={{ color: "#999" }}>Images Disabled</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Mentor images UI removed by request */}
 
             <TouchableOpacity
               style={[styles.postButton, mentorSubmitting && { opacity: 0.7 }]}

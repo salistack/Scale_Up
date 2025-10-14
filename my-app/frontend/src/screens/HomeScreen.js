@@ -22,6 +22,7 @@ import * as Sharing from "expo-sharing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import InvestorFeed from "../screens/InvestorFeed";
+import eventBus from "../utils/eventBus";
 
 const { width } = Dimensions.get("window");
 
@@ -82,7 +83,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://172.27.96.1:5000/api/entrepreneur/posts/${postId}`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${postId}`,
         {
           method: "DELETE",
           headers: {
@@ -127,8 +128,14 @@ const HomeScreen = () => {
   const [qrPostId, setQrPostId] = useState(null);
   const [activeFeed, setActiveFeed] = useState("entrepreneur");
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [franchises, setFranchises] = useState([]);
+    const [franchises, setFranchises] = useState([]);
 
+
+  // Chat states
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const navigation = useNavigation();
 
@@ -162,7 +169,7 @@ const HomeScreen = () => {
     const token = await AsyncStorage.getItem("token");
     try {
       const response = await fetch(
-        `http://172.27.96.1:5000/api/entrepreneur/posts/${editPostId}`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${editPostId}`,
         {
           method: "PUT",
           headers: {
@@ -223,7 +230,7 @@ const HomeScreen = () => {
       const fileUri = FileSystem.documentDirectory + `post_${postId}.pdf`;
 
       const downloadResumable = FileSystem.createDownloadResumable(
-        `http://172.27.96.1:5000/api/entrepreneur/posts/${postId}/download-pdf`,
+        `http://10.161.162.45:5000/api/entrepreneur/posts/${postId}/download-pdf`,
         fileUri,
         {
           headers: {
@@ -260,7 +267,7 @@ const HomeScreen = () => {
 
     try {
       const response = await fetch(
-        "http://172.27.96.1:5000/api/entrepreneur/posts",
+        "http://10.161.162.45:5000/api/entrepreneur/posts",
         {
           headers: {
             "Content-Type": "application/json",
@@ -282,20 +289,52 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    fetch("http://172.27.96.1:5000/api/mentors")
-      .then((res) => res.json())
-      .then((data) => setMentors(data))
-      .catch(() => setMentors([]));
-      
-    // Fetch franchises
+    // Initial fetch for mentors and franchises
+    loadMentors();
     console.log("Initial franchise API call from useEffect");
     loadFranchises();
+    // Subscribe to immediate updates
+    const unsubMentor = eventBus.on("mentor:changed", () => {
+      loadMentors();
+    });
+    const unsubFranchise = eventBus.on("franchise:changed", () => {
+      loadFranchises();
+    });
+    return () => {
+      unsubMentor && unsubMentor();
+      unsubFranchise && unsubFranchise();
+    };
   }, []);
+
+  const loadMentors = async () => {
+    try {
+      const ts = Date.now();
+      const res = await fetch(
+        `http://10.161.162.45:5000/api/mentors?_=${ts}`,
+        {
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMentors(data);
+      } else if (data && Array.isArray(data.mentors)) {
+        setMentors(data.mentors);
+      } else {
+        setMentors([]);
+      }
+    } catch (e) {
+      setMentors([]);
+    }
+  };
 
   const loadFranchises = async () => {
     try {
       console.log("Fetching franchises...");
-      const response = await fetch("http://172.27.96.1:5000/api/franchise/all");
+      const response = await fetch("http://10.161.162.45:5000/api/franchise/all");
       console.log("Franchise response status:", response.status);
       
       // Log response headers
@@ -354,14 +393,94 @@ const HomeScreen = () => {
     React.useCallback(() => {
       loadUserAndPosts();
       loadFranchises();
+      loadMentors();
     }, [])
   );
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
+    if (hour < 12) return "Good evening";
+    if (hour < 18) return "Good evening";
     return "Good evening";
+  };
+
+  // Chat functions
+  const openChat = () => {
+    setChatVisible(true);
+    if (chatMessages.length === 0) {
+      setChatMessages([
+        {
+          role: "assistant",
+          content: "Hello! I'm your AI business mentor. I can help you with:\n\n• Business strategy & planning\n• Marketing & customer acquisition\n• Fundraising & pitch preparation\n• Product development\n• Team building\n• Financial management\n\nWhat would you like to discuss today?",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    }
+  };
+
+  const closeChat = () => {
+    setChatVisible(false);
+  };
+
+  const sendMessage = async () => {
+    if (!chatInput.trim() || isSending) return;
+
+    const userMessage = {
+      role: "user",
+      content: chatInput.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    setChatMessages((prev) => [...prev, userMessage]);
+    setChatInput("");
+    setIsSending(true);
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      
+      console.log('Sending message to mentor API...');
+      
+      const response = await fetch("http://10.161.162.45:5000/api/chat/mentor", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: userMessage.content,
+          history: chatMessages,
+        }),
+      });
+
+      const data = await response.json();
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      Alert.alert("Connection Error", error.message || "Failed to get response from mentor");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -539,6 +658,7 @@ const HomeScreen = () => {
                           source={{
                             uri:
                               post.user?.photo ||
+                              post.user?.profilePic ||
                               "https://ui-avatars.com/api/?name=" +
                                 (post.user?.name || "U") +
                                 "&background=6750A4&color=fff",
@@ -784,6 +904,101 @@ const HomeScreen = () => {
         )}
       </ScrollView>
 
+      {/* Floating AI Chat Button */}
+      <TouchableOpacity
+        style={styles.floatingChatButton}
+        onPress={openChat}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.chatIcon}>🤖</Text>
+        <View style={styles.chatPulse} />
+      </TouchableOpacity>
+
+      {/* AI Chat Modal */}
+      <Modal
+        visible={chatVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeChat}
+      >
+        <View style={styles.chatModalContainer}>
+          <View style={styles.chatModal}>
+            <View style={styles.chatHeader}>
+              <View style={styles.chatHeaderLeft}>
+                <View style={styles.chatAvatarContainer}>
+                  <Text style={styles.chatAvatarText}>🤖</Text>
+                </View>
+                <View>
+                  <Text style={styles.chatHeaderTitle}>AI Mentor Assistant</Text>
+                  <Text style={styles.chatHeaderSubtitle}>Business Guidance</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={closeChat} style={styles.chatCloseButton}>
+                <Text style={styles.chatCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.chatMessagesContainer}
+              contentContainerStyle={styles.chatMessagesContent}
+              ref={(ref) => {
+                if (ref) ref.scrollToEnd({ animated: true });
+              }}
+            >
+              {chatMessages.map((msg, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.chatMessageBubble,
+                    msg.role === "user"
+                      ? styles.chatMessageUser
+                      : styles.chatMessageAssistant,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chatMessageText,
+                      msg.role === "user"
+                        ? styles.chatMessageTextUser
+                        : styles.chatMessageTextAssistant,
+                    ]}
+                  >
+                    {msg.content}
+                  </Text>
+                </View>
+              ))}
+              {isSending && (
+                <View style={[styles.chatMessageBubble, styles.chatMessageAssistant]}>
+                  <Text style={styles.chatMessageTextAssistant}>Thinking...</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.chatInputContainer}>
+              <TextInput
+                style={styles.chatInput}
+                placeholder="Ask your business question..."
+                placeholderTextColor="#999"
+                value={chatInput}
+                onChangeText={setChatInput}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                onPress={sendMessage}
+                style={[
+                  styles.chatSendButton,
+                  (!chatInput.trim() || isSending) && styles.chatSendButtonDisabled,
+                ]}
+                disabled={!chatInput.trim() || isSending}
+              >
+                <Text style={styles.chatSendButtonText}>➤</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Mentor Detail Modal */}
       <Modal
         transparent
@@ -877,7 +1092,7 @@ const HomeScreen = () => {
               {qrPostId && (
                 <View style={styles.qrCodeContainer}>
                   <QRCode
-                    value={`http://172.27.96.1:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
+                    value={`http://10.161.162.45:5000/api/entrepreneur/posts/${qrPostId}/download-pdf`}
                     size={220}
                     backgroundColor="white"
                     color="#6750A4"
@@ -1447,6 +1662,200 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13,
   },
+  
+  // Floating Chat Button
+  floatingChatButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#6750A4",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#6750A4",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  chatIcon: {
+    fontSize: 32,
+  },
+  chatPulse: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#6750A4",
+    opacity: 0.3,
+  },
+  
+  // Chat Modal Styles
+  chatModalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  chatModal: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    height: "85%",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  chatHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "#6750A4",
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chatAvatarContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chatAvatarText: {
+    fontSize: 22,
+  },
+  chatHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: 0.3,
+  },
+  chatHeaderSubtitle: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  chatCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chatCloseText: {
+    fontSize: 22,
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  chatMessagesContainer: {
+    flex: 1,
+    backgroundColor: "#F8F9FD",
+  },
+  chatMessagesContent: {
+    padding: 18,
+    paddingBottom: 24,
+  },
+  chatMessageBubble: {
+    maxWidth: "80%",
+    padding: 14,
+    borderRadius: 18,
+    marginBottom: 14,
+  },
+  chatMessageUser: {
+    alignSelf: "flex-end",
+    backgroundColor: "#6750A4",
+    borderBottomRightRadius: 4,
+    shadowColor: "#6750A4",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chatMessageAssistant: {
+    alignSelf: "flex-start",
+    backgroundColor: "#FFF",
+    borderBottomLeftRadius: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  chatMessageText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  chatMessageTextUser: {
+    color: "#FFF",
+    fontWeight: "500",
+  },
+  chatMessageTextAssistant: {
+    color: "#1A1A1A",
+    fontWeight: "400",
+  },
+  chatInputContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    padding: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#E8E8E8",
+    backgroundColor: "#FFF",
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "#F8F9FD",
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    fontSize: 15,
+    maxHeight: 100,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#E8E8E8",
+    color: "#1A1A1A",
+  },
+  chatSendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#6750A4",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#6750A4",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  chatSendButtonDisabled: {
+    backgroundColor: "#CCC",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  chatSendButtonText: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -1808,7 +2217,7 @@ const styles = StyleSheet.create({
   refreshButton: {
     backgroundColor: "#4CAF50",
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 16, 
     borderRadius: 20,
     marginTop: 10,
     shadowColor: "#000",

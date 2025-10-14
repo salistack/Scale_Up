@@ -27,7 +27,7 @@ const LoginScreen = () => {
       return 'http://localhost:5000';
     }
     // For mobile devices, use your computer's IP address
-    return 'http://172.27.96.1:5000';
+    return 'http://10.161.162.45:5000';
   };
 
   // Ensure the web browser completes the auth flow properly on native

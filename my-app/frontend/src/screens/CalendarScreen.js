@@ -11,6 +11,10 @@ import {
   TextInput,
   StatusBar,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -298,28 +302,41 @@ const CalendarScreen = () => {
         onRequestClose={() => setShowEventModal(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Event</Text>
-              <TouchableOpacity onPress={() => setShowEventModal(false)}>
-                <Icon name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput style={styles.input} placeholder="Event Title" />
-            <TextInput style={styles.input} placeholder="Date" />
-            <TextInput style={styles.input} placeholder="Time" />
-            <TextInput style={styles.input} placeholder="Location" />
-            <TextInput 
-              style={[styles.input, styles.textArea]} 
-              placeholder="Notes" 
-              multiline 
-            />
-            
-            <TouchableOpacity style={styles.submitButton}>
-              <Text style={styles.submitButtonText}>Add Event</Text>
-            </TouchableOpacity>
-          </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKAV}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Add New Event</Text>
+                  <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                    <Icon name="close" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.modalScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <TextInput style={styles.input} placeholder="Event Title" />
+                  <TextInput style={styles.input} placeholder="Date" />
+                  <TextInput style={styles.input} placeholder="Time" />
+                  <TextInput style={styles.input} placeholder="Location" />
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Notes"
+                    multiline
+                  />
+                </ScrollView>
+
+                <TouchableOpacity style={styles.submitButton}>
+                  <Text style={styles.submitButtonText}>Add Event</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -527,11 +544,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
+  modalKAV: {
+    width: '100%',
+    alignItems: 'center',
+  },
   modalContent: {
     width: '90%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
+  },
+  modalScrollContent: {
+    paddingBottom: 10,
   },
   modalHeader: {
     flexDirection: 'row',
